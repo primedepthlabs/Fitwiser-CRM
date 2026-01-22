@@ -170,6 +170,31 @@ interface Bill {
   created_at: string
 }
 
+interface LeadStatus {
+  id: string
+  lead_id: string
+  status: string
+  follow_up_date?: string
+  expected_amount?: number
+  notes?: string
+  changed_by?: string
+  changed_by_name?: string
+  changed_by_email?: string
+  created_at: string
+  updated_at: string
+}
+
+interface LeadNote {
+  id: string
+  lead_id: string
+  note_type: 'internal' | 'external'
+  note: string
+  created_by: string
+  created_by_name?: string
+  created_by_email?: string
+  created_at: string
+}
+
 export default function LeadInformationTab() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -185,13 +210,30 @@ export default function LeadInformationTab() {
   const [user, setUser] = useState<User | null>(null)
   const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([])
   const [bills, setBills] = useState<Bill[]>([])
-  
+  const [statusHistory, setStatusHistory] = useState<LeadStatus[]>([])
+const [showStatusDialog, setShowStatusDialog] = useState(false)
+const [newStatus, setNewStatus] = useState({
+  status: "",
+  follow_up_date: "",
+  expected_amount: "",
+  notes: ""
+})
+
   // UI State
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [sourceFilter, setSourceFilter] = useState("all")
+
+  const [dateRangeFilter, setDateRangeFilter] = useState({
+  startDate: "",
+  endDate: ""
+})
+const [cityFilter, setCityFilter] = useState("all")
+const [countryFilter, setCountryFilter] = useState("all")
+const [counselorFilter, setCounselorFilter] = useState("all")
+
   const [showBillGenerator, setShowBillGenerator] = useState(false)
   const [showInteractionForm, setShowInteractionForm] = useState(false)
   const totalPaidAmount = bills.reduce((sum, bill) => sum + bill.paid_amount, 0);
@@ -200,7 +242,31 @@ const totalBalance = bills.reduce((sum, bill) => sum + bill.balance, 0);
   const ADMIN_ROLE         = '46e786df-0272-4f22-aec2-56d2a517fa9d'
   const SALES_MANAGER_ROLE = '11b93954-9a56-4ea5-a02c-15b731ee9dfb'
   const EXECUTIVE_ROLE     = '1fe1759c-dc14-4933-947a-c240c046bcde'
-  
+  const [leadNotes, setLeadNotes] = useState<LeadNote[]>([])
+const [showNoteForm, setShowNoteForm] = useState(false)
+const [newNote, setNewNote] = useState({
+  note_type: 'external' as 'internal' | 'external',
+  note: ''
+})
+const LEAD_STATUSES = [
+  'New',
+  'In Follow Up',
+  'Expected Payment',
+  'Not Responding',
+  'Yet To Talk',
+  'Booked',
+  'Hot',
+  'Warm',
+  'App. Failed',
+  'Converted',
+  'Trial Booked',
+  'Successful Trial',
+  'Cold(Joined Other)',
+  'Cold(Price Issue)',
+  'Lost (Wrong Info)',
+  'Lost(Irrelevant)'
+]
+
   // Form states
 const [newBill, setNewBill] = useState({
   package_name: "",
@@ -416,7 +482,7 @@ const fetchPaymentHistory = async (userId: string) => {
   }
 }
 
-  // Fetch bills
+// Fetch bills
   const fetchBills = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -432,6 +498,243 @@ const fetchPaymentHistory = async (userId: string) => {
       return []
     }
   }
+
+  // Fetch lead status history with user information
+  const fetchLeadStatusHistory = async (leadId: string) => {
+    try {
+      const { data: statusData, error: statusError } = await supabase
+        .from('lead_status')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false })
+      
+      if (statusError) throw statusError
+      
+      if (!statusData || statusData.length === 0) return []
+
+      // Fetch user information for each status change
+      const userIds = [...new Set(statusData.map(s => s.changed_by).filter(Boolean))]
+      
+      if (userIds.length === 0) return statusData
+
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email')
+        .in('id', userIds)
+      
+      if (userError) {
+        console.error('Error fetching user data:', userError)
+        return statusData
+      }
+
+      // Map user data to status data
+      const userMap = new Map(userData?.map(u => [u.id, u]) || [])
+      
+return statusData.map(status => {
+  const user = status.changed_by ? userMap.get(status.changed_by) : null
+  return {
+    ...status,
+    changed_by_name: user?.email || 'System',
+    changed_by_email: user?.email || ''
+  }
+      })
+    } catch (error) {
+      console.error('Error fetching status history:', error)
+      return []
+    }
+  }
+
+  // Fetch lead notes with user information
+const fetchLeadNotes = async (leadId: string) => {
+  try {
+    const { data: notesData, error: notesError } = await supabase
+      .from('lead_notes')
+      .select('*')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+    
+    if (notesError) throw notesError
+    
+    if (!notesData || notesData.length === 0) return []
+
+    // Fetch user information for each note
+    const userIds = [...new Set(notesData.map(n => n.created_by).filter(Boolean))]
+    
+    if (userIds.length === 0) return notesData
+
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, first_name, last_name, email')
+      .in('id', userIds)
+    
+    if (userError) {
+      console.error('Error fetching user data:', userError)
+      return notesData
+    }
+
+    // Map user data to notes
+    const userMap = new Map(userData?.map(u => [u.id, u]) || [])
+    
+    return notesData.map(note => {
+      const user = note.created_by ? userMap.get(note.created_by) : null
+      return {
+        ...note,
+        created_by_name: user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email : 'System',
+        created_by_email: user?.email || ''
+      }
+    })
+  } catch (error) {
+    console.error('Error fetching lead notes:', error)
+    return []
+  }
+}
+
+// Add new note
+const addLeadNote = async () => {
+  if (!selectedLead || !newNote.note.trim()) {
+    toast.error('Please enter a note')
+    return
+  }
+
+  setSaving(true)
+  try {
+    const {
+      data: { user: authUser },
+      error: authErr
+    } = await supabase.auth.getUser()
+
+    if (authErr || !authUser) {
+      toast.error("User session not found")
+      return
+    }
+
+    const noteData = {
+      lead_id: selectedLead.id,
+      note_type: newNote.note_type,
+      note: newNote.note.trim(),
+      created_by: authUser.id
+    }
+
+    const { data, error } = await supabase
+      .from('lead_notes')
+      .insert([noteData])
+      .select()
+      .single()
+
+    if (error) throw error
+
+    // Fetch updated notes with user info
+    const updatedNotes = await fetchLeadNotes(selectedLead.id)
+    setLeadNotes(updatedNotes)
+    
+    // Reset form
+    setNewNote({
+      note_type: 'external',
+      note: ''
+    })
+    setShowNoteForm(false)
+    
+    toast.success('Note added successfully')
+  } catch (error: any) {
+    console.error('Error adding note:', error)
+    toast.error(`Failed to add note: ${error.message || 'Unknown error'}`)
+  } finally {
+    setSaving(false)
+  }
+}
+
+  // Save lead status change
+  const saveStatusChange = async () => {
+    if (!selectedLead || !newStatus.status) {
+      toast.error('Please select a status')
+      return
+    }
+
+    // Validate follow-up date for "In Follow Up" status
+    if (
+  (newStatus.status === 'In Follow Up' || newStatus.status === 'Expected Payment') &&
+  !newStatus.follow_up_date
+) {
+  toast.error('Date is required for this status')
+  return
+}
+
+if (
+  newStatus.status === 'Expected Payment' &&
+  (!newStatus.expected_amount || parseFloat(newStatus.expected_amount) <= 0)
+) {
+  toast.error('Expected payment amount is required')
+  return
+}
+
+    setSaving(true)
+    try {
+const {
+  data: { user: authUser },
+  error: authErr
+} = await supabase.auth.getUser()
+
+if (authErr || !authUser) {
+  toast.error("User session not found")
+  return
+}
+      const statusData = {
+        lead_id: selectedLead.id,
+        status: newStatus.status,
+        follow_up_date: newStatus.follow_up_date || null,
+        expected_amount: newStatus.expected_amount ? parseFloat(newStatus.expected_amount) : null,
+        notes: newStatus.notes || null,
+        changed_by: authUser?.id
+      }
+
+      const { data, error } = await supabase
+        .from('lead_status')
+        .insert([statusData])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Update the lead's current status in the leads table
+      const { error: updateError } = await supabase
+        .from('leads')
+        .update({ 
+          status: newStatus.status,
+          follow_up_date: newStatus.follow_up_date || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedLead.id)
+
+      if (updateError) throw updateError
+
+      // Fetch updated status history with user info
+      const updatedHistory = await fetchLeadStatusHistory(selectedLead.id)
+      setStatusHistory(updatedHistory)
+      
+      setSelectedLead(prev => prev ? { 
+        ...prev, 
+        status: newStatus.status,
+        follow_up_date: newStatus.follow_up_date || prev.follow_up_date 
+      } : null)
+
+      // Reset form
+      setNewStatus({
+        status: "",
+        follow_up_date: "",
+        expected_amount: "",
+        notes: ""
+      })
+      setShowStatusDialog(false)
+      
+      toast.success('Status updated successfully')
+    } catch (error: any) {
+      console.error('Error saving status:', error)
+      toast.error(`Failed to update status: ${error.message || 'Unknown error'}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
 
   // Handle lead selection
 const handleLeadSelection = async (leadId: string) => {
@@ -512,7 +815,14 @@ const handleLeadSelection = async (leadId: string) => {
     console.error('Error in handleLeadSelection:', error)
     toast.error(`Failed to load lead information: ${error.message || 'Unknown error'}`)
   } finally {
+    // Fetch lead status history
+const statusHistoryData = await fetchLeadStatusHistory(leadId)
+setStatusHistory(statusHistoryData || [])
+console.log('Status history:', statusHistoryData?.length || 0, 'items')
     setLoading(false)
+  const notesData = await fetchLeadNotes(leadId)
+setLeadNotes(notesData || [])
+console.log('Lead notes:', notesData?.length || 0, 'items')
   }
 }
 
@@ -865,19 +1175,42 @@ useEffect(() => {
       default: return "📋"
     }
   }
+// Get unique cities from leads
+const uniqueCities = Array.from(new Set(leads.map(lead => lead.city).filter(Boolean)))
 
+// Get unique counselors from leads
+const uniqueCounselors = Array.from(new Set(leads.map(lead => lead.counselor).filter(Boolean)))
   // Filter leads
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = 
-      lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.phone_number.includes(searchTerm)
-    const matchesStatus = statusFilter === "all" || lead.status.toLowerCase() === statusFilter
-    const matchesSource = sourceFilter === "all" || lead.source.toLowerCase().replace(" ", "") === sourceFilter
+const filteredLeads = leads.filter(lead => {
+  // Search filter
+  const matchesSearch = 
+    lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    lead.phone_number.includes(searchTerm)
+  
+  // Status filter
+  const matchesStatus = statusFilter === "all" || lead.status.toLowerCase() === statusFilter
+  
+  // Source filter
+  const matchesSource = sourceFilter === "all" || lead.source.toLowerCase().replace(" ", "") === sourceFilter
+  
+  // Date range filter
+  const leadDate = new Date(lead.created_at)
+  const matchesDateRange = 
+    (!dateRangeFilter.startDate || leadDate >= new Date(dateRangeFilter.startDate)) &&
+    (!dateRangeFilter.endDate || leadDate <= new Date(dateRangeFilter.endDate))
+  
+  // City filter
+  const matchesCity = cityFilter === "all" || lead.city.toLowerCase() === cityFilter.toLowerCase()
+  
+  // Country filter - assuming you have a country field, if not you can remove this
+  const matchesCountry = countryFilter === "all" || true // Add country field if available
+  
+  // Counselor filter
+  const matchesCounselor = counselorFilter === "all" || lead.counselor.toLowerCase() === counselorFilter.toLowerCase()
 
-    return matchesSearch && matchesStatus && matchesSource
-  })
-
+  return matchesSearch && matchesStatus && matchesSource && matchesDateRange && matchesCity && matchesCountry && matchesCounselor
+})
   if (loading && !selectedLead) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -897,91 +1230,199 @@ useEffect(() => {
             Lead Selection & Filters
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Search Leads</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search by name, email, phone..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 border-emerald-200 hover:border-emerald-300"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="hot">Hot</SelectItem>
-                  <SelectItem value="warm">Warm</SelectItem>
-                  <SelectItem value="cold">Cold</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Source</Label>
-              <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
-                  <SelectValue placeholder="All Sources" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sources</SelectItem>
-                  <SelectItem value="website">Website</SelectItem>
-                  <SelectItem value="socialmedia">Social Media</SelectItem>
-                  <SelectItem value="referral">Referral</SelectItem>
-                  <SelectItem value="coldcall">Cold Call</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Select Lead</Label>
-           <Select 
-  value={selectedLead?.id || ""} 
-  onValueChange={(value) => {
-    console.log('Dropdown selected:', value)
-    if (value && value !== selectedLead?.id) {
-      handleLeadSelection(value)
-    }
-  }}
-  disabled={loading || leads.length === 0}
->
-  <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
-    <SelectValue placeholder={loading ? "Loading leads..." : leads.length === 0 ? "No leads available" : "Select a lead"} />
-  </SelectTrigger>
-  <SelectContent>
-    {filteredLeads.length === 0 ? (
-      <div className="p-2 text-sm text-slate-500">
-        {loading ? "Loading..." : "No leads found with current filters"}
+       <CardContent>
+  <div className="space-y-4">
+    {/* First Row - Search and Date Range */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">Search Leads</Label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Input
+            placeholder="Search by name, email, phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 border-emerald-200 hover:border-emerald-300"
+          />
+        </div>
       </div>
-    ) : (
-      filteredLeads.map((lead) => (
-        <SelectItem key={lead.id} value={lead.id}>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span className="truncate">{lead.name}</span>
-            <Badge className={`text-xs ${getStatusColor(lead.status)}`}>
-              {lead.status}
-            </Badge>
-          </div>
-        </SelectItem>
-      ))
-    )}
-  </SelectContent>
-</Select>
-            </div>
-          </div>
-        </CardContent>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">Start Date</Label>
+        <Input
+          type="date"
+          value={dateRangeFilter.startDate}
+          onChange={(e) => setDateRangeFilter({...dateRangeFilter, startDate: e.target.value})}
+          className="border-emerald-200 hover:border-emerald-300"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">End Date</Label>
+        <Input
+          type="date"
+          value={dateRangeFilter.endDate}
+          onChange={(e) => setDateRangeFilter({...dateRangeFilter, endDate: e.target.value})}
+          className="border-emerald-200 hover:border-emerald-300"
+        />
+      </div>
+    </div>
+
+    {/* Second Row - Status, Source, City */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">Status</Label>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
+            <SelectValue placeholder="All Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="hot">Hot</SelectItem>
+            <SelectItem value="warm">Warm</SelectItem>
+            <SelectItem value="cold">Cold</SelectItem>
+            <SelectItem value="new">New</SelectItem>
+            <SelectItem value="in follow up">In Follow Up</SelectItem>
+            <SelectItem value="expected payment">Expected Payment</SelectItem>
+            <SelectItem value="not responding">Not Responding</SelectItem>
+            <SelectItem value="yet to talk">Yet To Talk</SelectItem>
+            <SelectItem value="booked">Booked</SelectItem>
+            <SelectItem value="converted">Converted</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">Source</Label>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
+            <SelectValue placeholder="All Sources" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="website">Website</SelectItem>
+            <SelectItem value="socialmedia">Social Media</SelectItem>
+            <SelectItem value="referral">Referral</SelectItem>
+            <SelectItem value="coldcall">Cold Call</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">City</Label>
+        <Select value={cityFilter} onValueChange={setCityFilter}>
+          <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
+            <SelectValue placeholder="All Cities" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Cities</SelectItem>
+            {uniqueCities.map((city) => (
+              <SelectItem key={city} value={city.toLowerCase()}>
+                {city}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+
+    {/* Third Row - Country, Counselor, Select Lead */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">Country</Label>
+        <Select value={countryFilter} onValueChange={setCountryFilter}>
+          <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
+            <SelectValue placeholder="All Countries" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Countries</SelectItem>
+            <SelectItem value="india">India</SelectItem>
+            <SelectItem value="usa">USA</SelectItem>
+            <SelectItem value="uk">UK</SelectItem>
+            <SelectItem value="canada">Canada</SelectItem>
+            <SelectItem value="australia">Australia</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">Counselor</Label>
+        <Select value={counselorFilter} onValueChange={setCounselorFilter}>
+          <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
+            <SelectValue placeholder="All Counselors" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Counselors</SelectItem>
+            {uniqueCounselors.map((counselor) => (
+              <SelectItem key={counselor} value={counselor.toLowerCase()}>
+                {counselor}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-slate-700">Select Lead</Label>
+        <Select 
+          value={selectedLead?.id || ""} 
+          onValueChange={(value) => {
+            if (value && value !== selectedLead?.id) {
+              handleLeadSelection(value)
+            }
+          }}
+          disabled={loading || leads.length === 0}
+        >
+          <SelectTrigger className="border-emerald-200 hover:border-emerald-300">
+            <SelectValue placeholder={loading ? "Loading leads..." : leads.length === 0 ? "No leads available" : "Select a lead"} />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredLeads.length === 0 ? (
+              <div className="p-2 text-sm text-slate-500">
+                {loading ? "Loading..." : "No leads found with current filters"}
+              </div>
+            ) : (
+              filteredLeads.map((lead) => (
+                <SelectItem key={lead.id} value={lead.id}>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="truncate">{lead.name}</span>
+                    <Badge className={`text-xs ${getStatusColor(lead.status)}`}>
+                      {lead.status}
+                    </Badge>
+                  </div>
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+
+    {/* Filter Summary and Clear Button */}
+    <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+      <div className="text-sm text-slate-600">
+        Showing <span className="font-semibold text-emerald-600">{filteredLeads.length}</span> of <span className="font-semibold">{leads.length}</span> leads
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          setSearchTerm("")
+          setStatusFilter("all")
+          setSourceFilter("all")
+          setDateRangeFilter({ startDate: "", endDate: "" })
+          setCityFilter("all")
+          setCountryFilter("all")
+          setCounselorFilter("all")
+        }}
+        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+      >
+        Clear All Filters
+      </Button>
+    </div>
+  </div>
+</CardContent>
       </Card>
 
       {selectedLead && leadInfo && (
@@ -1123,14 +1564,22 @@ useEffect(() => {
                       <h3 className="text-lg">Lead Management</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-slate-700">Current Status</Label>
-                        <Input 
-                          value={selectedLead.status} 
-                          readOnly 
-                          className="bg-slate-50" 
-                        />
-                      </div>
+                     <div className="space-y-2">
+  <Label className="text-sm font-medium text-slate-700">Current Status</Label>
+  <div className="flex gap-2">
+    <Input 
+      value={selectedLead.status} 
+      readOnly 
+      className="bg-slate-50 flex-1" 
+    />
+    <Button
+      onClick={() => setShowStatusDialog(true)}
+      className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
+    >
+      Change Status
+    </Button>
+  </div>
+</div>
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-slate-700">Lead Source</Label>
                         <Input 
@@ -1158,12 +1607,12 @@ useEffect(() => {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-100">
+                      {/* <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-100">
                         <div className="text-sm text-emerald-600 font-medium">Lead Score</div>
                         <div className="text-2xl font-bold text-emerald-700">
                           {selectedLead.lead_score}/100
                         </div>
-                      </div>
+                      </div> */}
                       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
                         <div className="text-sm text-blue-600 font-medium">Interactions</div>
                         <div className="text-2xl font-bold text-blue-700">
@@ -1178,6 +1627,178 @@ useEffect(() => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Status Change Dialog */}
+{showStatusDialog && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl">
+      <h3 className="text-lg font-semibold text-slate-800 mb-4">Change Lead Status</h3>
+      
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">New Status</Label>
+          <Select
+            value={newStatus.status}
+            onValueChange={(value) => setNewStatus({ ...newStatus, status: value })}
+          >
+            <SelectTrigger className="border-emerald-200">
+              <SelectValue placeholder="Select new status" />
+            </SelectTrigger>
+            <SelectContent>
+              {LEAD_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+{(newStatus.status === 'In Follow Up' || newStatus.status === 'Expected Payment') && (
+          <>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-slate-700">
+  {newStatus.status === 'Expected Payment' ? 'Expected Payment Date' : 'Follow-up Date'}
+  <span className="text-red-500">*</span>
+</Label>
+              <Input
+                type="date"
+                value={newStatus.follow_up_date}
+                onChange={(e) => setNewStatus({ ...newStatus, follow_up_date: e.target.value })}
+                className="border-emerald-200"
+                min={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            
+            <div className="space-y-2">
+<Label className="text-sm font-medium text-slate-700">
+  {newStatus.status === 'Expected Payment' ? 'Expected Payment Amount (₹)' : 'Expected Amount (₹)'}
+</Label>              <Input
+                type="number"
+                value={newStatus.expected_amount}
+                onChange={(e) => setNewStatus({ ...newStatus, expected_amount: e.target.value })}
+                className="border-emerald-200"
+                placeholder="Enter expected amount"
+              />
+            </div>
+          </>
+        )}
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">Notes (Optional)</Label>
+          <Textarea
+            value={newStatus.notes}
+            onChange={(e) => setNewStatus({ ...newStatus, notes: e.target.value })}
+            className="border-emerald-200"
+            placeholder="Add notes about this status change..."
+            rows={3}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3 mt-6">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setShowStatusDialog(false)
+            setNewStatus({
+              status: "",
+              follow_up_date: "",
+              expected_amount: "",
+              notes: ""
+            })
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={saveStatusChange}
+          disabled={saving}
+          className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            'Update Status'
+          )}
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+   {/* Status History */}
+                  {statusHistory.length > 0 && (
+                    <div className="pt-4 border-t border-slate-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-medium text-slate-700">Status History</h3>
+                        <Badge variant="outline" className="text-xs">
+                          {statusHistory.length} change{statusHistory.length !== 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {statusHistory.map((status, index) => (
+                          <div
+                            key={status.id}
+                            className="flex items-start gap-3 p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg border border-emerald-100 hover:shadow-md transition-shadow"
+                          >
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2 flex-shrink-0"></div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1 gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-slate-800">{status.status}</span>
+                                  {index === 0 && (
+                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                                      Current
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-xs text-slate-500 whitespace-nowrap">
+                                  {new Date(status.created_at).toLocaleString()}
+                                </span>
+                              </div>
+                              
+                              {/* User who made the change */}
+                              <div className="flex items-center gap-2 mb-2">
+                                <User className="h-3 w-3 text-slate-400" />
+                                <span className="text-sm text-slate-600">
+                                  Changed by: <span className="font-medium">{status.changed_by_name || 'System'}</span>
+                                </span>
+                              </div>
+
+                              {/* Follow-up date */}
+                              {status.follow_up_date && (
+                                <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                                  <CalendarDays className="h-3 w-3 text-blue-500" />
+                                  <span>Follow-up: {new Date(status.follow_up_date).toLocaleDateString()}</span>
+                                </div>
+                              )}
+                              
+                              {/* Expected amount */}
+                              {status.expected_amount && (
+                                <div className="flex items-center gap-2 text-sm text-slate-600 mb-1">
+                                  <DollarSign className="h-3 w-3 text-green-500" />
+                                  <span>Expected: ₹{status.expected_amount.toLocaleString()}</span>
+                                </div>
+                              )}
+                              
+                              {/* Notes */}
+                              {status.notes && (
+                                <div className="mt-2 p-2 bg-white/50 rounded text-sm text-slate-600 border border-emerald-100">
+                                  <div className="flex items-start gap-2">
+                                    <MessageSquare className="h-3 w-3 text-slate-400 mt-0.5 flex-shrink-0" />
+                                    <span className="break-words">{status.notes}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Fitness Goals Section */}
                   <div className="space-y-4 pt-4 border-t border-slate-200">
@@ -1283,98 +1904,7 @@ useEffect(() => {
             </Card>
           </Collapsible>
 
-          {/* Additional Form Information */}
-          <Collapsible open={!collapsedSections.additionalInfo} onOpenChange={() => toggleSection("additionalInfo")}>
-            <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer hover:bg-emerald-50/50 transition-colors">
-                  <CardTitle className="flex items-center justify-between text-emerald-700">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Additional Information
-                    </div>
-                    {collapsedSections.additionalInfo ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">How Did You Hear About Us?</Label>
-                      <Input
-                        value={leadInfo.how_did_you_hear || ""}
-                        onChange={(e) => setLeadInfo({...leadInfo, how_did_you_hear: e.target.value})}
-                        className="border-emerald-200"
-                        placeholder="e.g., Google Search, Social Media"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Preferred Language</Label>
-                      <Select 
-                        value={leadInfo.preferred_language || "English"}
-                        onValueChange={(value) => setLeadInfo({...leadInfo, preferred_language: value})}
-                      >
-                        <SelectTrigger className="border-emerald-200">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="English">English</SelectItem>
-                          <SelectItem value="Hindi">Hindi</SelectItem>
-                          <SelectItem value="Spanish">Spanish</SelectItem>
-                          <SelectItem value="French">French</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Specific Concerns</Label>
-                      <Textarea
-                        value={leadInfo.specific_concerns || ""}
-                        onChange={(e) => setLeadInfo({...leadInfo, specific_concerns: e.target.value})}
-                        className="border-emerald-200"
-                        placeholder="Any specific concerns or goals..."
-                        rows={3}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Availability Schedule</Label>
-                      <Textarea
-                        value={leadInfo.availability_schedule || ""}
-                        onChange={(e) => setLeadInfo({...leadInfo, availability_schedule: e.target.value})}
-                        className="border-emerald-200"
-                        placeholder="e.g., Weekday evenings, Weekend mornings"
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Social Media Handle</Label>
-                      <Input
-                        value={leadInfo.social_media_handle || ""}
-                        onChange={(e) => setLeadInfo({...leadInfo, social_media_handle: e.target.value})}
-                        className="border-emerald-200"
-                        placeholder="@username"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Emergency Contact</Label>
-                      <Input
-                        value={leadInfo.emergency_contact || ""}
-                        onChange={(e) => setLeadInfo({...leadInfo, emergency_contact: e.target.value})}
-                        className="border-emerald-200"
-                        placeholder="Enter emergency contact"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
+        
 
           {/* Combined Interaction History & Notes */}
           <Collapsible open={!collapsedSections.interactionAndNotes} onOpenChange={() => toggleSection("interactionAndNotes")}>
@@ -1506,47 +2036,149 @@ useEffect(() => {
 </div>
                   </div>
 
-                  {/* Comments & Notes Section */}
-                  <div className="space-y-4 pt-6 border-t border-slate-200">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-emerald-600" />
-                      <h3 className="text-lg font-semibold text-slate-800">Comments & Notes</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-slate-700">Public Comments</Label>
-                          <Textarea
-                            value={leadInfo.comments || ""}
-                            onChange={(e) => setLeadInfo({...leadInfo, comments: e.target.value})}
-                            rows={6}
-                            className="border-emerald-200 resize-none"
-                            placeholder="Add detailed notes about the lead..."
-                          />
-                        </div>
-                        <div className="text-sm text-slate-500">
-                          These notes are visible to all team members working with this lead.
-                        </div>
-                      </div>
+             {/* Comments & Notes Section */}
+<div className="space-y-4 pt-6 border-t border-slate-200">
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-2">
+      <FileText className="h-5 w-5 text-emerald-600" />
+      <h3 className="text-lg font-semibold text-slate-800">Notes & Comments</h3>
+    </div>
+    <Button
+      onClick={() => setShowNoteForm(!showNoteForm)}
+      className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
+    >
+      <Plus className="h-4 w-4 mr-2" />
+      Add Note
+    </Button>
+  </div>
 
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-slate-700">Internal Notes</Label>
-                          <Textarea
-                            value={leadInfo.internal_notes || ""}
-                            onChange={(e) => setLeadInfo({...leadInfo, internal_notes: e.target.value})}
-                            rows={6}
-                            className="border-emerald-200 resize-none"
-                            placeholder="Internal notes for team members..."
-                          />
-                        </div>
-                        <div className="text-sm text-slate-500">
-                          These notes are private and only visible to you and administrators.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+  {/* Add Note Form */}
+  {showNoteForm && (
+    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-200 mb-4">
+      <h4 className="font-medium text-emerald-700 mb-3">Add New Note</h4>
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">Note Type</Label>
+          <Select
+            value={newNote.note_type}
+            onValueChange={(value) => setNewNote({...newNote, note_type: value as 'internal' | 'external'})}
+          >
+            <SelectTrigger className="border-emerald-200">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="external">External (Visible to all)</SelectItem>
+              <SelectItem value="internal">Internal (Private)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-500">
+            {newNote.note_type === 'external' 
+              ? 'This note will be visible to all team members' 
+              : 'This note is private and only visible to you and administrators'}
+          </p>
+        </div>
+        
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-slate-700">Note</Label>
+          <Textarea
+            value={newNote.note}
+            onChange={(e) => setNewNote({...newNote, note: e.target.value})}
+            className="border-emerald-200"
+            placeholder="Enter your note..."
+            rows={4}
+          />
+        </div>
+      </div>
+      
+      <div className="flex justify-end gap-2 mt-3">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setShowNoteForm(false)
+            setNewNote({
+              note_type: 'external',
+              note: ''
+            })
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={addLeadNote}
+          disabled={saving || !newNote.note.trim()}
+          className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white"
+        >
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Adding...
+            </>
+          ) : (
+            'Add Note'
+          )}
+        </Button>
+      </div>
+    </div>
+  )}
+
+  {/* Notes List */}
+  <div className="space-y-3">
+    {leadNotes && leadNotes.length > 0 ? (
+      leadNotes.map((note) => (
+        <div
+          key={note.id}
+          className={`p-4 rounded-lg border ${
+            note.note_type === 'internal'
+              ? 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200'
+              : 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <div className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${
+              note.note_type === 'internal' ? 'bg-purple-500' : 'bg-emerald-500'
+            }`}></div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <User className="h-4 w-4 text-slate-400" />
+                  <span className="font-medium text-slate-800">
+                    {note.created_by_name || 'Unknown User'}
+                  </span>
+                  <Badge className={`text-xs ${
+                    note.note_type === 'internal'
+                      ? 'bg-purple-100 text-purple-700 border-purple-200'
+                      : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                  }`}>
+                    {note.note_type === 'internal' ? 'Internal' : 'External'}
+                  </Badge>
+                </div>
+                <span className="text-xs text-slate-500 whitespace-nowrap">
+                  {new Date(note.created_at).toLocaleString()}
+                </span>
+              </div>
+              
+              <div className="p-3 bg-white/50 rounded text-sm text-slate-700 border border-slate-100">
+                <p className="whitespace-pre-wrap break-words">{note.note}</p>
+              </div>
+              
+              {note.created_by_email && (
+                <div className="text-xs text-slate-500 mt-2">
+                  {note.created_by_email}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ))
+    ) : (
+      <div className="text-center py-8 text-slate-500">
+        <MessageCircle className="h-12 w-12 mx-auto mb-3 text-slate-300" />
+        <p>No notes added yet</p>
+        <p className="text-sm mt-1">Click "Add Note" to create your first note</p>
+      </div>
+    )}
+  </div>
+</div>
                 </CardContent>
               </CollapsibleContent>
             </Card>
@@ -1579,43 +2211,15 @@ useEffect(() => {
                     </Button>
                   </div>
 
-                 {/* Billing Summary Section */}
+           {/* Billing Summary Section */}
 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-100">
-    <div className="flex items-center gap-3">
-      <div className="p-2 bg-emerald-100 rounded-lg">
-        <Wallet className="h-4 w-4 text-emerald-600" />
-      </div>
-      <div>
-        <div className="text-sm text-emerald-600 font-medium">Total Paid</div>
-        <div className="text-2xl font-bold text-emerald-700">
-          ₹{totalPaidAmount}
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-lg border border-orange-100">
-    <div className="flex items-center gap-3">
-      <div className="p-2 bg-orange-100 rounded-lg">
-        <Receipt className="h-4 w-4 text-orange-600" />
-      </div>
-      <div>
-        <div className="text-sm text-orange-600 font-medium">Total Balance</div>
-        <div className="text-2xl font-bold text-orange-700">
-      ₹{totalBalance}
-        </div>
-      </div>
-    </div>
-  </div>
-  
   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
     <div className="flex items-center gap-3">
       <div className="p-2 bg-blue-100 rounded-lg">
         <FileText className="h-4 w-4 text-blue-600" />
       </div>
       <div>
-        <div className="text-sm text-blue-600 font-medium">Total Bills</div>
+        <div className="text-sm text-blue-600 font-medium">Number of Bills</div>
         <div className="text-2xl font-bold text-blue-700">{bills.length}</div>
       </div>
     </div>
@@ -1624,15 +2228,40 @@ useEffect(() => {
   <div className="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-lg border border-purple-100">
     <div className="flex items-center gap-3">
       <div className="p-2 bg-purple-100 rounded-lg">
-        <DollarSign className="h-4 w-4 text-purple-600" />
+        <Receipt className="h-4 w-4 text-purple-600" />
       </div>
       <div>
-        <div className="text-sm text-purple-600 font-medium">Billing Account</div>
-        <div className="text-xl font-bold text-purple-700">
-          {user ? "Active" : "No Account"}
+        <div className="text-sm text-purple-600 font-medium">Billing Amount</div>
+        <div className="text-2xl font-bold text-purple-700">
+          ₹{bills.reduce((sum, bill) => sum + bill.total_amount, 0).toLocaleString()}
         </div>
-        <div className="text-xs text-purple-500 mt-1">
-          {user ? "Linked to user" : "Lead only"}
+      </div>
+    </div>
+  </div>
+  
+  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg border border-emerald-100">
+    <div className="flex items-center gap-3">
+      <div className="p-2 bg-emerald-100 rounded-lg">
+        <Wallet className="h-4 w-4 text-emerald-600" />
+      </div>
+      <div>
+        <div className="text-sm text-emerald-600 font-medium">Paid Amount</div>
+        <div className="text-2xl font-bold text-emerald-700">
+          ₹{totalPaidAmount.toLocaleString()}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-lg border border-orange-100">
+    <div className="flex items-center gap-3">
+      <div className="p-2 bg-orange-100 rounded-lg">
+        <DollarSign className="h-4 w-4 text-orange-600" />
+      </div>
+      <div>
+        <div className="text-sm text-orange-600 font-medium">Balance</div>
+        <div className="text-2xl font-bold text-orange-700">
+          ₹{totalBalance.toLocaleString()}
         </div>
       </div>
     </div>

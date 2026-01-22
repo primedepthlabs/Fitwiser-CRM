@@ -39,6 +39,8 @@ import {
   ArrowDown,
   Loader2,
   RefreshCw,
+  XCircle,
+  IndianRupee,
 } from "lucide-react"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
@@ -91,6 +93,18 @@ interface NewLead {
   notes?: string
 }
 
+interface LeadStatus {
+  id: string
+  lead_id: string
+  status: string
+  follow_up_date: string
+  expected_amount: number
+  notes: string
+  changed_by: string
+  created_at: string
+  updated_at: string
+}
+
 type SortField = "created_at" | "name" | "counselor" | "city" | "profession" | "status" | "follow_up_date" | "source"
 type SortDirection = "asc" | "desc" | null
 
@@ -125,7 +139,9 @@ export function LeadsTab() {
   // Sorting states
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
-  
+  const [allLeadStatuses, setAllLeadStatuses] = useState<LeadStatus[]>([])
+const [filteredLeadStatuses, setFilteredLeadStatuses] = useState<LeadStatus[]>([])
+
   // Form data state
   const [formData, setFormData] = useState<NewLead>({
     name: '',
@@ -267,23 +283,19 @@ const fetchLeads = async () => {
   setError(null)
 
   try {
-    // — get current user (for `user.id`)
     const {
       data: { user },
       error: authError
     } = await supabase.auth.getUser()
     if (authError || !user) throw authError ?? new Error('No user session')
 
-    // — read roleId from localStorage instead of querying it
     const rawProfile = localStorage.getItem('userProfile')
-    const roleId     = rawProfile ? JSON.parse(rawProfile).role_id : null
+    const roleId = rawProfile ? JSON.parse(rawProfile).role_id : null
 
-    // — base query: everyone sees this unless filtered below
     let query = supabase.from<Lead>('leads').select('*')
+    let statusQuery = supabase.from('lead_status').select('*')
 
-    // — only executives get filtered down to their assignments
     if (roleId === EXECUTIVE_ROLE) {
-      // pull all assignment records for this exec
       const { data: assignments, error: assignError } = await supabase
         .from('lead_assignments')
         .select('lead_id')
@@ -291,24 +303,29 @@ const fetchLeads = async () => {
 
       if (assignError) throw assignError
 
-      // if none assigned, bail out with empty list
       const leadIds = assignments.map(a => a.lead_id)
       if (leadIds.length === 0) {
         setLeads([])
+        setAllLeadStatuses([])
         return
       }
 
-      // apply the filter
       query = query.in('id', leadIds)
+      statusQuery = statusQuery.in('lead_id', leadIds)
     }
-    // (Superadmin, Admin, Sales Manager all just run the unfiltered query)
 
-    // — run the (possibly filtered) query
-    const { data, error: leadsError } = await query
-      .order('created_at', { ascending: false })
+    // Fetch both leads and lead statuses
+    const [{ data: leadsData, error: leadsError }, { data: statusData, error: statusError }] = 
+      await Promise.all([
+        query.order('created_at', { ascending: false }),
+        statusQuery.order('created_at', { ascending: false })
+      ])
 
     if (leadsError) throw leadsError
-    setLeads(data ?? [])
+    if (statusError) throw statusError
+    
+    setLeads(leadsData ?? [])
+    setAllLeadStatuses(statusData ?? [])
   } catch (err: any) {
     setError(err.message || 'Failed to fetch leads')
   } finally {
@@ -452,6 +469,8 @@ const fetchLeads = async () => {
     fetchLeads()
   }, [])
 
+
+
   // Sorting logic
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -552,26 +571,116 @@ const fetchLeads = async () => {
     return filtered
   }, [leads, searchTerm, statusFilter, sourceFilter, counselorFilter, priorityFilter, dateRange, sortField, sortDirection])
 
-  // Calculate stats
 const stats = useMemo(() => {
   const data = filteredAndSortedLeads
+  
+  // Create a map of lead statuses from lead_status table
+  const statusMap = new Map<string, { count: number; expectedAmount: number }>()
+  
+  filteredLeadStatuses.forEach(status => {
+    const existing = statusMap.get(status.status) || { count: 0, expectedAmount: 0 }
+    statusMap.set(status.status, {
+      count: existing.count + 1,
+      expectedAmount: existing.expectedAmount + (status.expected_amount || 0)
+    })
+  })
+
+  // Block 2 statuses
+  const newCount = statusMap.get('New')?.count || 0
+  const followUpCount = statusMap.get('In Follow Up')?.count || 0
+  const notRespondingCount = statusMap.get('Not Responding')?.count || 0
+  const yetToTalkCount = statusMap.get('Yet To Talk')?.count || 0
+
+  // Block 3 statuses
+  const bookedCount = statusMap.get('Booked')?.count || 0
+  const hotCount = statusMap.get('Hot')?.count || 0
+  const warmCount = statusMap.get('Warm')?.count || 0
+  const appFailedCount = statusMap.get('App. Failed')?.count || 0
+  const convertedCount = statusMap.get('Converted')?.count || 0
+  const trialBookedCount = statusMap.get('Trial Booked')?.count || 0
+  const successfulTrialCount = statusMap.get('Successful Trial')?.count || 0
+  
+  // Expected Amount (sum of all expected amounts)
+  const totalExpectedAmount = Array.from(statusMap.values()).reduce(
+    (sum, data) => sum + data.expectedAmount, 
+    0
+  )
+
+  // Block 4 statuses
+  const coldJoinedOtherCount = statusMap.get('Cold(Joined Other)')?.count || 0
+  const coldPriceIssueCount = statusMap.get('Cold(Price Issue)')?.count || 0
+  const lostWrongInfoCount = statusMap.get('Lost (Wrong Info)')?.count || 0
+  const lostIrrelevantCount = statusMap.get('Lost(Irrelevant)')?.count || 0
+
+  // Legacy calculations for old status field (keep for backward compatibility)
+  const legacyHot = data.filter(l => l.status === "Hot").length
+  const legacyWarm = data.filter(l => l.status === "Warm").length
 
   return {
+    // Block 1
     total: data.length,
-    new: data.filter(l => l.status === "New").length,
-    hot: data.filter(l => l.status === "Hot").length,
-    warm: data.filter(l => l.status === "Warm").length,
+    
+    // Block 2
+    new: newCount,
+    followUp: followUpCount,
+    notResponding: notRespondingCount,
+    yetToTalk: yetToTalkCount,
+    
+    // Block 3
+    booked: bookedCount,
+    hot: hotCount,
+    warm: warmCount,
+    appFailed: appFailedCount,
+    converted: convertedCount,
+    expectedAmount: totalExpectedAmount,
+    trialBooked: trialBookedCount,
+    successfulTrial: successfulTrialCount,
+    
+    // Block 4
+    coldJoinedOther: coldJoinedOtherCount,
+    coldPriceIssue: coldPriceIssueCount,
+    lostWrongInfo: lostWrongInfoCount,
+    lostIrrelevant: lostIrrelevantCount,
+    
+    // Legacy/Other stats
     cold: data.filter(l => l.status === "Cold").length,
     failed: data.filter(l => l.status === "Failed").length,
     conversionRate: data.length
-      ? ((data.filter(l => ["Hot", "Warm"].includes(l.status)).length / data.length) * 100).toFixed(1)
+      ? (((hotCount + warmCount) / data.length) * 100).toFixed(1)
       : "0",
     avgLeadScore: data.length
       ? (data.reduce((sum, l) => sum + l.lead_score, 0) / data.length).toFixed(0)
       : "0",
     highPriority: data.filter(l => l.priority === "High").length,
   }
-}, [filteredAndSortedLeads])
+}, [filteredAndSortedLeads, filteredLeadStatuses])
+
+  // Add this after the filteredAndSortedLeads useMemo (around line ~430)
+useEffect(() => {
+  if (!filteredAndSortedLeads.length) {
+    setFilteredLeadStatuses([])
+    return
+  }
+
+  const filteredLeadIds = filteredAndSortedLeads.map(l => l.id)
+  let filtered = allLeadStatuses.filter(s => filteredLeadIds.includes(s.lead_id))
+
+  if (dateRange?.from || dateRange?.to) {
+    filtered = filtered.filter((status) => {
+      const statusDate = new Date(status.created_at)
+      if (dateRange.from && dateRange.to) {
+        return statusDate >= dateRange.from && statusDate <= dateRange.to
+      } else if (dateRange.from) {
+        return statusDate >= dateRange.from
+      } else if (dateRange.to) {
+        return statusDate <= dateRange.to
+      }
+      return true
+    })
+  }
+
+  setFilteredLeadStatuses(filtered)
+}, [allLeadStatuses, filteredAndSortedLeads, dateRange])
 
   // Get unique counselors for filter
   const uniqueCounselors = [...new Set(leads.map(l => l.counselor).filter(Boolean))]
@@ -813,114 +922,369 @@ const stats = useMemo(() => {
       </Card>
 
       {/* Enhanced Lead Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-4">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-green-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-emerald-700">
-              <Target className="h-4 w-4" />
-              Total Leads
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-600">{stats.total}</div>
-            <p className="text-xs text-slate-600 flex items-center mt-1">
-              <TrendingUp className="h-3 w-3 mr-1 text-emerald-500" />
-              All time leads
-            </p>
-          </CardContent>
-        </Card>
+   {/* Enhanced Lead Stats - Organized in Blocks */}
+<div className="space-y-6">
+  {/* Block 1: Total Leads */}
+  <div>
+    <h3 className="text-lg font-semibold text-slate-700 mb-4">Overview</h3>
+    <div className="grid grid-cols-1 gap-4">
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-gray-200 via-gray-50 to-gray-200 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-800 font-semibold">
+            <Target className="h-4 w-4" />
+            Total Leads
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-slate-800">{stats.total}</div>
+          <p className="text-xs text-slate-600 flex items-center mt-1">
+            <TrendingUp className="h-3 w-3 mr-1 text-emerald-500" />
+            All time leads
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-cyan-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-700">
-              <Sparkles className="h-4 w-4" />
-              New Leads
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.new}</div>
-            <p className="text-xs text-slate-600">Fresh prospects</p>
-          </CardContent>
-        </Card>
+  {/* Block 2: Lead Pipeline */}
+  <div>
+    <h3 className="text-lg font-semibold text-slate-700 mb-4">Lead Pipeline</h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-emerald-50 to-green-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-emerald-700">
+            <Sparkles className="h-4 w-4" />
+            New
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-emerald-600">{stats.new}</div>
+          <p className="text-xs text-slate-600">Fresh leads</p>
+        </CardContent>
+      </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-pink-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-700">
-              <Flame className="h-4 w-4" />
-              Hot Leads
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.hot}</div>
-            <p className="text-xs text-slate-600">High priority</p>
-          </CardContent>
-        </Card>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-cyan-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-700">
+            <Clock className="h-4 w-4" />
+            In Follow Up
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-blue-600">{stats.followUp}</div>
+          <p className="text-xs text-slate-600">Active follow-ups</p>
+        </CardContent>
+      </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-yellow-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-700">
-              <Thermometer className="h-4 w-4" />
-              Warm Leads
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats.warm}</div>
-            <p className="text-xs text-slate-600">Medium priority</p>
-          </CardContent>
-        </Card>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-yellow-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-700">
+            <AlertTriangle className="h-4 w-4" />
+            Not Responding
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-orange-600">{stats.notResponding}</div>
+          <p className="text-xs text-slate-600">Need attention</p>
+        </CardContent>
+      </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-700">
-              <Snowflake className="h-4 w-4" />
-              Cold Leads
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.cold}</div>
-            <p className="text-xs text-slate-600">Low priority</p>
-          </CardContent>
-        </Card>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-yellow-50 to-amber-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-yellow-700">
+            <Phone className="h-4 w-4" />
+            Yet To Talk
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-yellow-600">{stats.yetToTalk}</div>
+          <p className="text-xs text-slate-600">Pending contact</p>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-indigo-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-purple-700">
-              <Star className="h-4 w-4" />
-              Conversion Rate
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{stats.conversionRate}%</div>
-            <p className="text-xs text-slate-600">Hot + Warm leads</p>
-          </CardContent>
-        </Card>
+  {/* Block 3: Progress & Revenue */}
+  <div>
+    <h3 className="text-lg font-semibold text-slate-700 mb-4">Lead Progress & Revenue</h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-700">
+            <CalendarIcon className="h-4 w-4" />
+            Booked
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-blue-600">{stats.booked}</div>
+          <p className="text-xs text-slate-600">Appointments set</p>
+        </CardContent>
+      </Card>
 
-        {/* <Card className="border-0 shadow-lg bg-gradient-to-br from-teal-50 to-cyan-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-teal-700">
-              <Target className="h-4 w-4" />
-              Avg Lead Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-teal-600">{stats.avgLeadScore}</div>
-            <p className="text-xs text-slate-600">Out of 100</p>
-          </CardContent>
-        </Card> */}
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-pink-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-700">
+            <Flame className="h-4 w-4" />
+            Hot
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-red-600">{stats.hot}</div>
+          <p className="text-xs text-slate-600">High interest</p>
+        </CardContent>
+      </Card>
 
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-rose-50 to-pink-50 hover:shadow-xl transition-all">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2 text-rose-700">
-              <AlertTriangle className="h-4 w-4" />
-              High Priority
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-rose-600">{stats.highPriority}</div>
-            <p className="text-xs text-slate-600">Need attention</p>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-yellow-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-orange-700">
+            <Thermometer className="h-4 w-4" />
+            Warm
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-orange-600">{stats.warm}</div>
+          <p className="text-xs text-slate-600">Moderate interest</p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-gray-50 to-slate-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-700">
+            <XCircle className="h-4 w-4" />
+            App. Failed
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-slate-600">{stats.appFailed}</div>
+          <p className="text-xs text-slate-600">Failed applications</p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-emerald-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-700">
+            <TrendingUp className="h-4 w-4" />
+            Converted
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-green-600">{stats.converted}</div>
+          <p className="text-xs text-slate-600">Successful conversions</p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-gray-200 via-gray-50 to-gray-200 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-800 font-semibold">
+            <IndianRupee className="h-4 w-4" />
+            Expected Amount
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-xl font-bold text-slate-800 flex items-center">
+            <IndianRupee className="h-5 w-5 mr-1" />
+            {stats.expectedAmount.toLocaleString()}
+          </div>
+          <p className="text-xs text-slate-600">Total expected revenue</p>
+        </CardContent>
+      </Card>
+<Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-violet-50 hover:shadow-xl transition-all">
+  <CardHeader className="pb-2">
+    <CardTitle className="text-sm font-medium flex items-center gap-2 text-purple-700">
+      <CalendarIcon className="h-4 w-4" />
+      Trial Booked
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    <div className="text-2xl font-bold text-purple-600">
+      {stats.trialBooked}
+    </div>
+    <p className="text-xs text-slate-600">
+      Trials scheduled
+    </p>
+  </CardContent>
+</Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-teal-50 to-cyan-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-teal-700">
+            <Star className="h-4 w-4" />
+            Successful Trial
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-teal-600">{stats.successfulTrial}</div>
+          <p className="text-xs text-slate-600">Completed trials</p>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+
+  {/* Block 3.5: Conversion Metrics */}
+  <div>
+    <h3 className="text-lg font-semibold text-slate-700 mb-4">Conversion Metrics</h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-violet-50 to-purple-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-violet-700">
+            <TrendingUp className="h-4 w-4" />
+            Booking Conversion
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-violet-600">
+            {stats.booked > 0 
+              ? ((stats.booked / stats.total) * 100).toFixed(1) 
+              : '0.0'}%
+          </div>
+          <p className="text-xs text-slate-600">
+            Booked / Total Leads
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-cyan-50 to-blue-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-cyan-700">
+            <CalendarIcon className="h-4 w-4" />
+            Successful Appointments
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-cyan-600">
+            {stats.total > 0 
+              ? (((stats.total - stats.appFailed) / stats.total) * 100).toFixed(1) 
+              : '0.0'}%
+          </div>
+          <p className="text-xs text-slate-600">
+            (Total - Failed) / Total
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-emerald-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-green-700">
+            <Star className="h-4 w-4" />
+            Gross Conversion
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-green-600">
+            {stats.total > 0 
+              ? ((stats.converted / stats.total) * 100).toFixed(1) 
+              : '0.0'}%
+          </div>
+          <p className="text-xs text-slate-600">
+            Converted / Total Leads
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-yellow-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-700">
+            <Target className="h-4 w-4" />
+            Net Conversion
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-amber-600">
+            {stats.booked > 0 
+              ? ((stats.converted / stats.booked) * 100).toFixed(1) 
+              : '0.0'}%
+          </div>
+          <p className="text-xs text-slate-600">
+            Converted / Booked Leads
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-rose-50 to-pink-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-rose-700">
+            <Sparkles className="h-4 w-4" />
+            Real Conversion
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-rose-600">
+            {(() => {
+              const connected = stats.booked - stats.appFailed;
+              return connected > 0 
+                ? ((stats.converted / connected) * 100).toFixed(1) 
+                : '0.0';
+            })()}%
+          </div>
+          <p className="text-xs text-slate-600">
+            Converted / Connected
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Connected = Booked - Failed
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+
+  {/* Block 4: Closed Leads */}
+  <div>
+    <h3 className="text-lg font-semibold text-slate-700 mb-4">Closed Leads</h3>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-50 to-gray-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-slate-700">
+            <Snowflake className="h-4 w-4" />
+            Cold (Joined Other)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-slate-600">{stats.coldJoinedOther}</div>
+          <p className="text-xs text-slate-600">Lost to competitor</p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-gray-50 to-slate-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-700">
+            <IndianRupee className="h-4 w-4" />
+            Cold (Price Issue)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-gray-600">{stats.coldPriceIssue}</div>
+          <p className="text-xs text-slate-600">Budget concerns</p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-rose-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-red-700">
+            <AlertTriangle className="h-4 w-4" />
+            Lost (Wrong Info)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-red-600">{stats.lostWrongInfo}</div>
+          <p className="text-xs text-slate-600">Incorrect details</p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-amber-50 to-orange-50 hover:shadow-xl transition-all">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-700">
+            <XCircle className="h-4 w-4" />
+            Lost (Irrelevant)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-amber-600">{stats.lostIrrelevant}</div>
+          <p className="text-xs text-slate-600">Not a fit</p>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+</div>
 
       {/* Enhanced Lead Management with Sorting */}
       <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">

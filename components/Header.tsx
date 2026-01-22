@@ -22,7 +22,10 @@ import {
   IndianRupee,
   Loader2,
   ChevronRight,
-  UserCheck2Icon
+  UserCheck2Icon,
+  Bell,
+  X,
+  Check
 } from "lucide-react"
 import { Input } from "./ui/input"
 import { Button } from "./ui/button"
@@ -30,6 +33,7 @@ import { Card, CardContent } from "./ui/card"
 import { Badge } from "./ui/badge"
 import { Avatar, AvatarFallback } from "./ui/avatar"
 import { format } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
 
 const pageConfig = {
   "/dashboard": {
@@ -115,6 +119,20 @@ interface SearchResult {
   data: Lead | Client
 }
 
+interface Notification {
+  id: string
+  user_id: string
+  type: 'new_lead' | 'status_change'
+  title: string
+  message: string
+  lead_id: string | null
+  lead_name: string | null
+  old_status: string | null
+  new_status: string | null
+  is_read: boolean
+  created_at: string
+}
+
 export default function Header() {
   const pathname = usePathname()
   const router = useRouter()
@@ -135,9 +153,17 @@ export default function Header() {
   const [clients, setClients] = useState<Client[]>([])
   const [userProfile, setUserProfile] = useState<any>(null)
 
+  // Notification state
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
   // Refs for search functionality
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
+  const notificationRef = useRef<HTMLDivElement>(null)
+  const lastLeadCheckRef = useRef<string | null>(null)
+  const lastStatusCheckRef = useRef<string | null>(null)
 
   // Role constants
   const SUPERADMIN_ROLE = 'b00060fe-175a-459b-8f72-957055ee8c55'
@@ -198,12 +224,249 @@ export default function Header() {
     loadUser()
   }, [])
 
-  // Load search data
+  // Load search data and notifications
   useEffect(() => {
     if (userProfile) {
       loadSearchData()
+      loadNotificationsFromStorage()
     }
   }, [userProfile])
+
+  // Set up real-time monitoring for leads table
+  useEffect(() => {
+    if (!userProfile) return
+
+    const leadsChannel = supabase
+      .channel('leads-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'leads'
+        },
+        async (payload) => {
+          await handleNewLead(payload.new as any)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(leadsChannel)
+    }
+  }, [userProfile])
+
+  // Set up real-time monitoring for lead_status table
+  useEffect(() => {
+    if (!userProfile) return
+
+    const statusChannel = supabase
+      .channel('status-channel')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'lead_status'
+        },
+        async (payload) => {
+          await handleStatusChange(payload.new as any)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(statusChannel)
+    }
+  }, [userProfile])
+
+  const handleNewLead = async (newLead: any) => {
+    if (!userProfile) return
+
+    // Check if user should be notified (admins, sales managers)
+    const shouldNotify = [SUPERADMIN_ROLE, ADMIN_ROLE, SALES_MANAGER_ROLE].includes(userProfile.role_id)
+    
+    if (!shouldNotify) return
+
+    const notification: Notification = {
+      id: `new-lead-${newLead.id}-${Date.now()}`,
+      user_id: userProfile.id,
+      type: 'new_lead',
+      title: 'New Lead Created',
+      message: `A new lead "${newLead.name}" has been added to the system.`,
+      lead_id: newLead.id,
+      lead_name: newLead.name,
+      old_status: null,
+      new_status: newLead.status,
+      is_read: false,
+      created_at: new Date().toISOString()
+    }
+
+    addNotification(notification)
+  }
+
+  const handleStatusChange = async (statusChange: any) => {
+    if (!userProfile) return
+
+    try {
+      // Get lead details
+      const { data: lead, error: leadError } = await supabase
+        .from('leads')
+        .select('name, id')
+        .eq('id', statusChange.lead_id)
+        .single()
+
+      if (leadError || !lead) return
+
+      // Check if user should be notified
+      let shouldNotify = false
+
+      // Admins and sales managers get all notifications
+      if ([SUPERADMIN_ROLE, ADMIN_ROLE, SALES_MANAGER_ROLE].includes(userProfile.role_id)) {
+        shouldNotify = true
+      }
+
+      // Executives only get notifications for their assigned leads
+      if (userProfile.role_id === EXECUTIVE_ROLE) {
+        const { data: assignment } = await supabase
+          .from('lead_assignments')
+          .select('id')
+          .eq('lead_id', statusChange.lead_id)
+          .eq('assigned_to', userProfile.id)
+          .single()
+
+        shouldNotify = !!assignment
+      }
+
+      if (!shouldNotify) return
+
+      // Get previous status
+      const { data: previousStatuses } = await supabase
+        .from('lead_status')
+        .select('status')
+        .eq('lead_id', statusChange.lead_id)
+        .neq('id', statusChange.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      const oldStatus = previousStatuses && previousStatuses.length > 0 
+        ? previousStatuses[0].status 
+        : 'None'
+
+      const notification: Notification = {
+        id: `status-change-${statusChange.id}-${Date.now()}`,
+        user_id: userProfile.id,
+        type: 'status_change',
+        title: 'Lead Status Changed',
+        message: `Lead "${lead.name}" status changed from "${oldStatus}" to "${statusChange.status}".`,
+        lead_id: statusChange.lead_id,
+        lead_name: lead.name,
+        old_status: oldStatus,
+        new_status: statusChange.status,
+        is_read: false,
+        created_at: new Date().toISOString()
+      }
+
+      addNotification(notification)
+    } catch (error) {
+      console.error('Error handling status change:', error)
+    }
+  }
+
+  const addNotification = (notification: Notification) => {
+    // Add to state
+    setNotifications(prev => [notification, ...prev])
+    setUnreadCount(prev => prev + 1)
+
+    // Save to localStorage
+    const stored = localStorage.getItem('notifications') || '[]'
+    const allNotifications = JSON.parse(stored)
+    allNotifications.unshift(notification)
+    // Keep only last 50 notifications
+    const trimmed = allNotifications.slice(0, 50)
+    localStorage.setItem('notifications', JSON.stringify(trimmed))
+  }
+
+  const loadNotificationsFromStorage = () => {
+    if (!userProfile) return
+
+    try {
+      const stored = localStorage.getItem('notifications')
+      if (stored) {
+        const allNotifications: Notification[] = JSON.parse(stored)
+        // Filter notifications for current user
+        const userNotifications = allNotifications.filter(n => n.user_id === userProfile.id)
+        setNotifications(userNotifications.slice(0, 20))
+        setUnreadCount(userNotifications.filter(n => !n.is_read).length)
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+    }
+  }
+
+  const markAsRead = (notificationId: string) => {
+    // Update state
+    setNotifications(prev =>
+      prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
+    )
+    setUnreadCount(prev => Math.max(0, prev - 1))
+
+    // Update localStorage
+    try {
+      const stored = localStorage.getItem('notifications') || '[]'
+      const allNotifications: Notification[] = JSON.parse(stored)
+      const updated = allNotifications.map(n => 
+        n.id === notificationId ? { ...n, is_read: true } : n
+      )
+      localStorage.setItem('notifications', JSON.stringify(updated))
+    } catch (error) {
+      console.error('Error updating notification:', error)
+    }
+  }
+
+  const markAllAsRead = () => {
+    // Update state
+    setNotifications(prev =>
+      prev.map(n => ({ ...n, is_read: true }))
+    )
+    setUnreadCount(0)
+
+    // Update localStorage
+    try {
+      const stored = localStorage.getItem('notifications') || '[]'
+      const allNotifications: Notification[] = JSON.parse(stored)
+      const updated = allNotifications.map(n => 
+        n.user_id === userProfile.id ? { ...n, is_read: true } : n
+      )
+      localStorage.setItem('notifications', JSON.stringify(updated))
+    } catch (error) {
+      console.error('Error updating notifications:', error)
+    }
+  }
+
+  const clearAllNotifications = () => {
+    setNotifications([])
+    setUnreadCount(0)
+
+    // Clear from localStorage
+    try {
+      const stored = localStorage.getItem('notifications') || '[]'
+      const allNotifications: Notification[] = JSON.parse(stored)
+      const filtered = allNotifications.filter(n => n.user_id !== userProfile.id)
+      localStorage.setItem('notifications', JSON.stringify(filtered))
+    } catch (error) {
+      console.error('Error clearing notifications:', error)
+    }
+  }
+
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification.id)
+    
+    if (notification.lead_id) {
+      router.push(`/lead-information?tab=lead-information&leadId=${notification.lead_id}`)
+      setShowNotifications(false)
+    }
+  }
 
   const loadSearchData = async () => {
     try {
@@ -445,6 +708,9 @@ export default function Header() {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
         setShowResults(false)
       }
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
@@ -488,6 +754,17 @@ export default function Header() {
         default:
           return "bg-gray-100 text-gray-700 border-gray-200"
       }
+    }
+  }
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'new_lead':
+        return <UserPlus className="h-5 w-5 text-emerald-600" />
+      case 'status_change':
+        return <Bell className="h-5 w-5 text-blue-600" />
+      default:
+        return <Bell className="h-5 w-5 text-slate-600" />
     }
   }
 
@@ -610,26 +887,140 @@ export default function Header() {
           )}
         </div>
 
-        {/* right: name, role, avatar */}
-        <div className="flex items-center space-x-3 pl-4 border-l border-slate-200">
-          <div className="text-right">
-            <p className="text-sm font-medium text-slate-800">{fullName}</p>
-            {roleName && (
-              <p className="text-xs text-slate-500">{roleName}</p>
+        {/* right: notifications + name, role, avatar */}
+        <div className="flex items-center space-x-4 pl-4 border-l border-slate-200">
+          {/* Notification Bell */}
+          <div className="relative" ref={notificationRef}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative hover:bg-emerald-50"
+            >
+              <Bell className="h-5 w-5 text-slate-600" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Button>
+
+            {/* Notifications Dropdown */}
+            {showNotifications && (
+              <Card className="absolute top-full right-0 mt-2 w-96 max-h-[500px] overflow-hidden border-0 shadow-2xl bg-white z-50">
+                <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 to-emerald-100">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-slate-800">Notifications</h3>
+                    <div className="flex items-center space-x-2">
+                      {unreadCount > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={markAllAsRead}
+                          className="text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-100"
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          Mark all read
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowNotifications(false)}
+                        className="h-6 w-6"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <CardContent className="p-0 max-h-[400px] overflow-y-auto">
+                  {notifications.length > 0 ? (
+                    <div className="divide-y divide-slate-100">
+                      {notifications.map((notification) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`w-full p-4 text-left hover:bg-emerald-50 transition-colors ${
+                            !notification.is_read ? 'bg-blue-50/50' : ''
+                          }`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className={`flex-shrink-0 p-2 rounded-full ${
+                              notification.type === 'new_lead' 
+                                ? 'bg-emerald-100' 
+                                : 'bg-blue-100'
+                            }`}>
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-semibold text-slate-900 text-sm">
+                                  {notification.title}
+                                </h4>
+                                {!notification.is_read && (
+                                  <div className="h-2 w-2 bg-emerald-500 rounded-full flex-shrink-0 ml-2"></div>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-600 mt-1">
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-slate-400 mt-2">
+                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center">
+                      <Bell className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-slate-600 font-medium">No notifications yet</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        You'll be notified about new leads and status changes
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+
+                {notifications.length > 0 && (
+                  <div className="p-2 border-t border-slate-200 bg-slate-50">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearAllNotifications}
+                      className="w-full text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                    >
+                      Clear all notifications
+                    </Button>
+                  </div>
+                )}
+              </Card>
             )}
           </div>
 
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt="Profile"
-              className="w-10 h-10 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center">
-              <UserIcon size={16} className="text-white" />
+          <div className="flex items-center space-x-3">
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-800">{fullName}</p>
+              {roleName && (
+                <p className="text-xs text-slate-500">{roleName}</p>
+              )}
             </div>
-          )}
+
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Profile"
+                className="w-10 h-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center">
+                <UserIcon size={16} className="text-white" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

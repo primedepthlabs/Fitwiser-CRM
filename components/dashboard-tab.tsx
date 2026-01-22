@@ -1,4 +1,4 @@
-//dashbooard-tab-checkbox-filters   "use client"
+"use client"
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
 import { Calendar } from "./ui/calendar"
@@ -20,6 +20,12 @@ import {
   Loader2,
   IndianRupee,
   RefreshCw,
+  CheckCircle,
+  XCircle,
+  Phone,
+  MessageCircle,
+  DollarSign,
+  Target,
 } from "lucide-react"
 import { format } from "date-fns"
 import type { DateRange } from "react-day-picker"
@@ -44,6 +50,18 @@ interface Lead {
   budget: string
   timeline: string
   notes: string
+  created_at: string
+  updated_at: string
+}
+
+interface LeadStatus {
+  id: string
+  lead_id: string
+  status: string
+  follow_up_date: string
+  expected_amount: number
+  notes: string
+  changed_by: string
   created_at: string
   updated_at: string
 }
@@ -97,36 +115,117 @@ interface ManualPayment {
   plan: string
 }
 
-interface AnalyticsData {
+interface StatusCard {
+  status: string
   count: number
-  change: number
+  expectedAmount?: number
   color: string
   textColor: string
-  isSpecial?: boolean
+  icon: any
+  block: number
 }
-
-const getIcon = (type: string) => {
-  switch (type) {
-    case "new":
-      return <Users className="h-4 w-4" />
-    case "hot":
-      return <Flame className="h-4 w-4" />
-    case "warm":
-      return <Thermometer className="h-4 w-4" />
-    case "cold":
-      return <Snowflake className="h-4 w-4" />
-    case "failed":
-      return <X className="h-4 w-4" />
-    case "totalClients":
-      return <Users className="h-4 w-4" />
-    case "totalRevenue":
-      return <IndianRupee className="h-4 w-4" />
-    default:
-      return <Users className="h-4 w-4" />
+const STATUS_BLOCKS = {
+    1: ['Total Leads'],
+    2: ['New', 'In Follow Up', 'Not Responding', 'Yet To Talk'],
+    3: ['Booked', 'Hot', 'Warm', 'App. Failed', 'Converted', 'Expected Amount', 'Trial Booked', 'Successful Trial'],
+    4: ['Cold(Joined Other)', 'Cold(Price Issue)', 'Lost (Wrong Info)', 'Lost(Irrelevant)'],
+    5: ['Gross Conversion', 'Net Conversion'],
+    6: ['BDE Booking Rate'],
+    7: ['Successful Appointments']
   }
+
+const REGION_MAPPING: Record<string, string> = {
+  // North Region
+  'punjab': 'North',
+  'jammu': 'North',
+  'kashmir': 'North',
+  'himachal pradesh': 'North',
+  'himachal': 'North',
+  'chandigarh': 'North',
+  'delhi': 'North',
+  'new delhi': 'North',
+  'haryana': 'North',
+  'uttarakhand': 'North',
+  'uttar pradesh': 'North',
+  
+  // South Region
+  'tamil nadu': 'South',
+  'chennai': 'South',
+  'karnataka': 'South',
+  'bangalore': 'South',
+  'bengaluru': 'South',
+  'kerala': 'South',
+  'andhra pradesh': 'South',
+  'telangana': 'South',
+  'hyderabad': 'South',
+  'puducherry': 'South',
+  
+  // East Region
+  'west bengal': 'East',
+  'kolkata': 'East',
+  'odisha': 'East',
+  'bihar': 'East',
+  'jharkhand': 'East',
+  'assam': 'East',
+  'meghalaya': 'East',
+  'manipur': 'East',
+  'mizoram': 'East',
+  'nagaland': 'East',
+  'tripura': 'East',
+  'arunachal pradesh': 'East',
+  'sikkim': 'East',
+  
+  // West Region
+  'maharashtra': 'West',
+  'mumbai': 'West',
+  'pune': 'West',
+  'gujarat': 'West',
+  'ahmedabad': 'West',
+  'rajasthan': 'West',
+  'jaipur': 'West',
+  'goa': 'West',
+  
+  // Central Region
+  'madhya pradesh': 'Central',
+  'chhattisgarh': 'Central',
+  
+  // International (you can add more countries as needed)
+  'usa': 'International - USA',
+  'united states': 'International - USA',
+  'uk': 'International - UK',
+  'united kingdom': 'International - UK',
+  'canada': 'International - Canada',
+  'australia': 'International - Australia',
+  'uae': 'International - UAE',
+  'dubai': 'International - UAE',
+  'singapore': 'International - Singapore',
 }
 
-// Utility function to check if date is within range
+const getRegionFromCity = (city: string): string => {
+  if (!city) return 'Unknown'
+  const normalized = city.toLowerCase().trim()
+  return REGION_MAPPING[normalized] || 'Other'
+}
+
+
+const getIcon = (status: string) => {
+  const statusLower = status.toLowerCase()
+  if (statusLower.includes('new')) return <Users className="h-4 w-4" />
+  if (statusLower.includes('follow')) return <Clock className="h-4 w-4" />
+  if (statusLower.includes('not responding')) return <MessageCircle className="h-4 w-4" />
+  if (statusLower.includes('yet to talk')) return <Phone className="h-4 w-4" />
+  if (statusLower.includes('booked')) return <CheckCircle className="h-4 w-4" />
+  if (statusLower.includes('hot')) return <Flame className="h-4 w-4" />
+  if (statusLower.includes('warm')) return <Thermometer className="h-4 w-4" />
+  if (statusLower.includes('failed')) return <XCircle className="h-4 w-4" />
+  if (statusLower.includes('converted')) return <TrendingUp className="h-4 w-4" />
+  if (statusLower.includes('expected')) return <DollarSign className="h-4 w-4" />
+  if (statusLower.includes('trial')) return <CheckCircle className="h-4 w-4" />
+  if (statusLower.includes('cold')) return <Snowflake className="h-4 w-4" />
+  if (statusLower.includes('lost')) return <XCircle className="h-4 w-4" />
+  return <Users className="h-4 w-4" />
+}
+
 const isDateInRange = (dateStr: string, dateRange?: DateRange) => {
   if (!dateStr || !dateRange?.from) return true
   try {
@@ -142,25 +241,23 @@ const isDateInRange = (dateStr: string, dateRange?: DateRange) => {
 export function DashboardTab() {
   const router = useRouter()
   
-  // Filter states
   const [date, setDate] = useState<DateRange | undefined>()
-const [statusFilter, setStatusFilter] = useState<string[]>([])
-const [sourceFilter, setSourceFilter] = useState<string[]>([])
-const [cityFilter, setCityFilter] = useState<string[]>([])
-const [priorityFilter, setPriorityFilter] = useState<string[]>([])
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const [sourceFilter, setSourceFilter] = useState<string[]>([])
+const [regionFilter, setRegionFilter] = useState<string[]>([])
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([])
   
-  // Data states
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [allLeads, setAllLeads] = useState<Lead[]>([])
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([])
+  const [allLeadStatuses, setAllLeadStatuses] = useState<LeadStatus[]>([])
+  const [filteredLeadStatuses, setFilteredLeadStatuses] = useState<LeadStatus[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([])
   const [manualPayments, setManualPayment] = useState<ManualPayment[]>([])
-  const [analyticsData, setAnalyticsData] = useState<Record<string, AnalyticsData>>({})
+  const [statusCards, setStatusCards] = useState<StatusCard[]>([])
   
-  // Calculated states
-  const [totalClients, setTotalClients] = useState(0)
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [collectionAnalytics, setCollectionAnalytics] = useState({
     totalCollected: 0,
@@ -172,28 +269,30 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
     dueSoon: 0,
     recoveryRate: 0,
   })
-  const [recentActivity, setRecentActivity] = useState<any[]>([])
 
-  // Available filter options
   const [availableSources, setAvailableSources] = useState<string[]>([])
-  const [availableCities, setAvailableCities] = useState<string[]>([])
+const [availableRegions, setAvailableRegions] = useState<string[]>([])
   const [availableStatuses, setAvailableStatuses] = useState<string[]>([])
   const [availablePriorities, setAvailablePriorities] = useState<string[]>([])
 
-  // User role and access control
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [assignedLeadIds, setAssignedLeadIds] = useState<string[]>([])
   const [hasFullAccess, setHasFullAccess] = useState(false)
 
-  // Role constants
   const FULL_ACCESS_ROLES = [
-    "b00060fe-175a-459b-8f72-957055ee8c55", // Superadmin
-    "46e786df-0272-4f22-aec2-56d2a517fa9d", // Admin
-    "11b93954-9a56-4ea5-a02c-15b731ee9dfb", // Sales manager
+    "b00060fe-175a-459b-8f72-957055ee8c55",
+    "46e786df-0272-4f22-aec2-56d2a517fa9d",
+    "11b93954-9a56-4ea5-a02c-15b731ee9dfb",
   ]
 
-  // Fetch data from Supabase
+  const STATUS_BLOCKS = {
+    1: ['Total Leads'],
+    2: ['New', 'In Follow Up', 'Not Responding', 'Yet To Talk'],
+    3: ['Booked', 'Hot', 'Warm', 'App. Failed', 'Converted', 'Expected Amount', 'Trial Booked', 'Successful Trial'],
+    4: ['Cold(Joined Other)', 'Cold(Price Issue)', 'Lost (Wrong Info)', 'Lost(Irrelevant)']
+  }
+
   const fetchData = async (showRefreshLoader = false) => {
     try {
       if (showRefreshLoader) {
@@ -202,7 +301,6 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
         setLoading(true)
       }
 
-      // 1) Get the current user
       const {
         data: { user: currentUser },
         error: userError,
@@ -215,7 +313,6 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
       const currentUserId = currentUser.id
       setCurrentUserId(currentUserId)
 
-      // 2) Load their role_id
       const { data: profile, error: profileError } = await supabase
         .from("users")
         .select("role_id")
@@ -229,19 +326,13 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
       const roleId = profile.role_id
       setUserRole(roleId)
 
-      // 3) Check access level
       const isFullAccess = FULL_ACCESS_ROLES.includes(roleId)
       setHasFullAccess(isFullAccess)
 
-      console.log("🏷️  User Access:", { currentUserId, roleId, isFullAccess })
-
       let assignedIds: string[] = []
-
-      // 4) Build the leads query - ONLY filter leads for executives
       let leadsQuery = supabase.from("leads").select("*").order("created_at", { ascending: false })
 
       if (!isFullAccess) {
-        // Executive → restrict to their assigned leads
         const { data: assignments = [], error: assignError } = await supabase
           .from("lead_assignments")
           .select("lead_id")
@@ -255,7 +346,6 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
         if (assignedIds.length > 0) {
           leadsQuery = leadsQuery.in("id", assignedIds)
         } else {
-          // no assignments → force an empty result set
           leadsQuery = leadsQuery.in("id", ["00000000-0000-0000-0000-000000000000"])
         }
       }
@@ -265,10 +355,34 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
       
       setAllLeads(leadsData)
 
-      // Extract unique filter options from leads data
+      // Fetch lead statuses
+      let statusQuery = supabase.from("lead_status").select("*").order("created_at", { ascending: false })
+      
+      if (!isFullAccess && assignedIds.length > 0) {
+        statusQuery = statusQuery.in("lead_id", assignedIds)
+      } else if (!isFullAccess) {
+        statusQuery = statusQuery.in("lead_id", ["00000000-0000-0000-0000-000000000000"])
+      }
+
+      const { data: statusData = [], error: statusError } = await statusQuery
+      if (statusError) throw statusError
+      
+      setAllLeadStatuses(statusData)
+
       const uniqueSources = [...new Set(leadsData.map(lead => lead.source).filter(Boolean))]
-      const uniqueCities = [...new Set(leadsData.map(lead => lead.city).filter(Boolean))]
-      const uniqueStatuses = [...new Set(leadsData.map(lead => lead.status).filter(Boolean))]
+const uniqueRegions = [...new Set(
+  leadsData
+    .map(lead => getRegionFromCity(lead.city))
+    .filter(region => region !== 'Unknown')
+)]
+setAvailableRegions(uniqueRegions.sort())
+      const uniqueStatuses = [
+        ...new Set(
+          leadsData
+            .map(lead => lead.status?.trim().toLowerCase())
+            .filter(Boolean)
+        ),
+      ]
       const uniquePriorities = [...new Set(leadsData.map(lead => lead.priority).filter(Boolean))]
 
       setAvailableSources(uniqueSources)
@@ -276,7 +390,6 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
       setAvailableStatuses(uniqueStatuses)
       setAvailablePriorities(uniquePriorities)
 
-      // 5) Fetch all users to match with leads by email
       const { data: usersData = [], error: usersError } = await supabase
         .from("users")
         .select("id, email, phone, first_name, last_name, role_id, created_at")
@@ -284,23 +397,14 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
       if (usersError) throw usersError
       setAllUsers(usersData)
 
-      // 6) Fetch payments with role-based filtering
       let paymentLinksQuery = supabase.from("payment_links").select("*").order("created_at", { ascending: false })
       let manualPaymentsQuery = supabase.from("manual_payment").select("*").order("created_at", { ascending: false })
 
-      if (isFullAccess) {
-        // SUPERADMIN/ADMIN: Get ALL payments - no filtering
-        console.log("🔓 Full access user - fetching ALL payments")
-      } else {
-        // EXECUTIVE: Filter payments by leads assigned to them
-        console.log("🔒 Executive user - filtering payments by assigned leads")
-
-        // Create a mapping of lead emails to user IDs for assigned leads only
+      if (!isFullAccess && assignedIds.length > 0) {
         const leadEmailToUserMap = new Map<string, string>()
         const leadPhoneToUserMap = new Map<string, string>()
 
         leadsData.forEach((lead) => {
-          // Find matching user by email
           const matchingUser = usersData.find(
             (user) => user.email && lead.email && user.email.toLowerCase() === lead.email.toLowerCase(),
           )
@@ -308,7 +412,6 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
             leadEmailToUserMap.set(lead.id, matchingUser.id)
           }
 
-          // Also try to match by phone as fallback
           if (!matchingUser && lead.phone_number) {
             const phoneMatchingUser = usersData.find(
               (user) => user.phone && lead.phone_number && user.phone === lead.phone_number,
@@ -319,24 +422,14 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
           }
         })
 
-        // Get user IDs that correspond to assigned leads
         const relevantUserIds = Array.from(
           new Set([...Array.from(leadEmailToUserMap.values()), ...Array.from(leadPhoneToUserMap.values())]),
         )
 
-        console.log("📧 Executive Lead to User mapping:", {
-          assignedLeads: leadsData.length,
-          emailMatches: leadEmailToUserMap.size,
-          phoneMatches: leadPhoneToUserMap.size,
-          relevantUserIds: relevantUserIds.length,
-        })
-
-        // Filter payments by user_ids that match assigned leads
         if (relevantUserIds.length > 0) {
           paymentLinksQuery = paymentLinksQuery.in("user_id", relevantUserIds)
           manualPaymentsQuery = manualPaymentsQuery.in("user_id", relevantUserIds)
         } else {
-          // No matching users found, return empty results
           paymentLinksQuery = paymentLinksQuery.in("user_id", ["00000000-0000-0000-0000-000000000000"])
           manualPaymentsQuery = manualPaymentsQuery.in("user_id", ["00000000-0000-0000-0000-000000000000"])
         }
@@ -351,7 +444,6 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
       setPaymentLinks(paymentLinksData)
       setManualPayment(manualPaymentsData)
 
-      // 7) Calculate total clients & revenue based on filtered data
       const completedLinksForLeads = paymentLinksData.filter((p) => p.status === "completed")
       const completedManualForLeads = manualPaymentsData.filter((p) => p.status === "completed")
 
@@ -360,19 +452,8 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
         0,
       )
 
-      setTotalClients(leadsData.length)
       setTotalRevenue(totalRevenueAmount)
 
-      console.log("💰 Revenue calculation:", {
-        userType: isFullAccess ? "FULL_ACCESS" : "EXECUTIVE",
-        leads: leadsData.length,
-        paymentLinks: paymentLinksData.length,
-        manualPayments: manualPaymentsData.length,
-        completedLinks: completedLinksForLeads.length,
-        completedManual: completedManualForLeads.length,
-        totalRevenue: totalRevenueAmount,
-        assignedLeads: assignedIds.length,
-      })
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -381,294 +462,334 @@ const [priorityFilter, setPriorityFilter] = useState<string[]>([])
     }
   }
 
-  // Initial data fetch
   useEffect(() => {
     fetchData()
   }, [])
 
-useEffect(() => {
-  let filtered = [...allLeads]
+  useEffect(() => {
+    let filtered = [...allLeads]
 
-  // Apply status filter
-  if (statusFilter.length > 0) {
-    filtered = filtered.filter((lead) => {
-      const leadStatus = lead.status?.toLowerCase()
-      return statusFilter.some(status => status.toLowerCase() === leadStatus)
-    })
-  }
+    if (statusFilter.length > 0) {
+      filtered = filtered.filter((lead) => {
+        const leadStatus = lead.status?.toLowerCase()
+        return statusFilter.some(status => status.toLowerCase() === leadStatus)
+      })
+    }
 
-  // Apply source filter
-  if (sourceFilter.length > 0) {
-    filtered = filtered.filter((lead) => {
-      const leadSource = lead.source?.toLowerCase()
-      return sourceFilter.some(source => source.toLowerCase() === leadSource)
-    })
-  }
+    if (sourceFilter.length > 0) {
+      filtered = filtered.filter((lead) => {
+        const leadSource = lead.source?.toLowerCase()
+        return sourceFilter.some(source => source.toLowerCase() === leadSource)
+      })
+    }
 
-  // Apply city filter
-  if (cityFilter.length > 0) {
-    filtered = filtered.filter((lead) => {
-      const leadCity = lead.city?.toLowerCase()
-      return cityFilter.some(city => city.toLowerCase() === leadCity)
-    })
-  }
-
-  // Apply priority filter
-  if (priorityFilter.length > 0) {
-    filtered = filtered.filter((lead) => {
-      const leadPriority = lead.priority?.toLowerCase()
-      return priorityFilter.some(priority => priority.toLowerCase() === leadPriority)
-    })
-  }
-
-  // Apply date range filter
-  if (date?.from || date?.to) {
-    filtered = filtered.filter((lead) => {
-      return isDateInRange(lead.created_at, date)
-    })
-  }
-
-  console.log("🔍 Filter applied:", {
-    original: allLeads.length,
-    filtered: filtered.length,
-    filters: { statusFilter, sourceFilter, cityFilter, priorityFilter, dateRange: !!date?.from }
+  if (regionFilter.length > 0) {
+  filtered = filtered.filter((lead) => {
+    const leadRegion = getRegionFromCity(lead.city)
+    return regionFilter.includes(leadRegion)
   })
-
-  setFilteredLeads(filtered)
-}, [allLeads, statusFilter, sourceFilter, cityFilter, priorityFilter, date])
+}
 
 
-  // Process analytics data based on filtered leads
-  useEffect(() => {
-    if (filteredLeads.length >= 0) {
-      const statusCounts = filteredLeads.reduce(
-        (acc, lead) => {
-          const status = lead.status?.toLowerCase() || "unknown"
-          acc[status] = (acc[status] || 0) + 1
-          return acc
-        },
-        {} as Record<string, number>,
-      )
-
-      // Calculate changes compared to previous period (mock data for demonstration)
-      const calculateChange = (current: number) => {
-        // This should be calculated based on historical data
-        // For now, using mock changes
-        return Math.floor(Math.random() * 20) - 10
-      }
-
-      const processedAnalytics = {
-        new: {
-          count: statusCounts.new || 0,
-          change: calculateChange(statusCounts.new || 0),
-          color: "bg-emerald-500",
-          textColor: "text-emerald-600",
-        },
-        hot: {
-          count: statusCounts.hot || 0,
-          change: calculateChange(statusCounts.hot || 0),
-          color: "bg-red-500",
-          textColor: "text-red-600",
-        },
-        warm: {
-          count: statusCounts.warm || 0,
-          change: calculateChange(statusCounts.warm || 0),
-          color: "bg-orange-500",
-          textColor: "text-orange-600",
-        },
-        cold: {
-          count: statusCounts.cold || 0,
-          change: calculateChange(statusCounts.cold || 0),
-          color: "bg-blue-500",
-          textColor: "text-blue-600",
-        },
-        failed: {
-          count: statusCounts.failed || 0,
-          change: calculateChange(statusCounts.failed || 0),
-          color: "bg-gray-500",
-          textColor: "text-gray-600",
-        },
-        totalClients: {
-          count: filteredLeads.length, // Use filtered count
-          change: calculateChange(filteredLeads.length),
-          color: "bg-gradient-to-r from-purple-500 to-pink-500",
-          textColor: "text-purple-600",
-          isSpecial: true,
-        },
-        totalRevenue: {
-          count: totalRevenue,
-          change: calculateChange(totalRevenue),
-          color: "bg-gradient-to-r from-green-500 to-teal-500",
-          textColor: "text-green-600",
-          isSpecial: true,
-        },
-      }
-      setAnalyticsData(processedAnalytics)
+    if (priorityFilter.length > 0) {
+      filtered = filtered.filter((lead) => {
+        const leadPriority = lead.priority?.toLowerCase()
+        return priorityFilter.some(priority => priority.toLowerCase() === leadPriority)
+      })
     }
-  }, [filteredLeads, totalRevenue])
 
-// Process collection analytics - now filtered by selected date range
-useEffect(() => {
-  if (paymentLinks.length === 0 && manualPayments.length === 0) return;
-
-  // 1️⃣ Filter payments to the selected date range:
-  const linksInRange = paymentLinks.filter(p =>
-    isDateInRange(p.payment_date || p.created_at, date)
-  );
-  const manualInRange = manualPayments.filter(p =>
-    isDateInRange(p.payment_date || p.created_at, date)
-  );
-
-  // 2️⃣ Separate completed vs pending:
-  const completed = [
-    ...linksInRange.filter(p => p.status === "completed").map(p => ({ ...p, source: "link" })),
-    ...manualInRange.filter(p => p.status === "completed").map(p => ({ ...p, source: "manual" })),
-  ];
-  const pending = [
-    ...linksInRange.filter(p => p.status === "pending"),
-    ...manualInRange.filter(p => p.status === "pending"),
-  ];
-
-  // 3️⃣ Totals:
-  const totalCollected = completed.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const now = new Date().getTime();
-  const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000;
-  const twoWeeksAgo = now - 14 * 24 * 60 * 60 * 1000;
-
-  // week‑over‑week for collected
-  const thisWeek = completed
-    .filter(p => new Date(p.payment_date || p.created_at).getTime() >= oneWeekAgo)
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-  const lastWeek = completed
-    .filter(p => {
-      const t = new Date(p.payment_date || p.created_at).getTime();
-      return t >= twoWeeksAgo && t < oneWeekAgo;
-    })
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-  const growthRate = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : 0;
-
-  // 30‑day overdue & 7‑day due‑soon (all pending)
-  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
-  const sevenDaysAhead = now + 7 * 24 * 60 * 60 * 1000;
-  const overdue = pending
-    .filter(p => new Date(p.created_at).getTime() < thirtyDaysAgo)
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-  const dueSoon = pending
-    .filter(p => {
-      const exp = new Date(p.expires_at || p.plan_expiry || p.created_at).getTime();
-      return exp > now && exp <= sevenDaysAhead;
-    })
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-  const outstandingBalance = pending.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const recoveryRate =
-    totalCollected + outstandingBalance > 0
-      ? (totalCollected / (totalCollected + outstandingBalance)) * 100
-      : 0;
-
-  // 4️⃣ Update state:
-  setCollectionAnalytics({
-    totalCollected,
-    thisWeek,
-    lastWeek,
-    growthRate,
-    outstandingBalance,
-    overdue,
-    dueSoon,
-    recoveryRate,
-  });
-}, [paymentLinks, manualPayments, date, userRole, hasFullAccess]);
-
-
-  // Process recent activity based on filtered leads
-  useEffect(() => {
-    if (filteredLeads.length > 0) {
-      const activities = filteredLeads.slice(0, 5).map((lead) => ({
-        action: getActivityAction(lead),
-        client: lead.name,
-        time: getTimeAgo(lead.updated_at || lead.created_at),
-        status: lead.status?.toLowerCase() || "unknown",
-        priority: lead.priority?.toLowerCase() || "medium",
-      }))
-      setRecentActivity(activities)
-    } else {
-      setRecentActivity([])
+    if (date?.from || date?.to) {
+      filtered = filtered.filter((lead) => {
+        return isDateInRange(lead.created_at, date)
+      })
     }
-  }, [filteredLeads])
 
-  const getActivityAction = (lead: Lead) => {
-    const actions = ["New lead added", "Follow-up completed", "Meeting scheduled", "Lead updated", "Status changed"]
-    return actions[Math.floor(Math.random() * actions.length)]
-  }
+    setFilteredLeads(filtered)
+}, [allLeads, statusFilter, sourceFilter, regionFilter, priorityFilter, date])
 
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+  useEffect(() => {
+    if (!filteredLeads.length) {
+      setFilteredLeadStatuses([])
+      return
+    }
 
-    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`
-    return `${Math.floor(diffInMinutes / 1440)} days ago`
-  }
+    const filteredLeadIds = filteredLeads.map(l => l.id)
+    let filtered = allLeadStatuses.filter(s => filteredLeadIds.includes(s.lead_id))
+
+    if (date?.from || date?.to) {
+      filtered = filtered.filter((status) => {
+        return isDateInRange(status.created_at, date)
+      })
+    }
+
+    setFilteredLeadStatuses(filtered)
+  }, [allLeadStatuses, filteredLeads, date])
+
+  useEffect(() => {
+    if (filteredLeadStatuses.length === 0 && filteredLeads.length === 0) {
+      setStatusCards([])
+      return
+    }
+
+    const statusMap = new Map<string, { count: number; expectedAmount: number }>()
+
+    filteredLeadStatuses.forEach(status => {
+      const existing = statusMap.get(status.status) || { count: 0, expectedAmount: 0 }
+      statusMap.set(status.status, {
+        count: existing.count + 1,
+        expectedAmount: existing.expectedAmount + (status.expected_amount || 0)
+      })
+    })
+
+    const cards: StatusCard[] = []
+
+    // Block 1: Total Leads
+    cards.push({
+      status: 'Total Leads',
+      count: filteredLeads.length,
+      color: 'bg-gradient-to-r from-purple-500 to-pink-500',
+      textColor: 'text-purple-600',
+      icon: <Users className="h-4 w-4" />,
+      block: 1
+    })
+
+    // Block 2
+    STATUS_BLOCKS[2].forEach(status => {
+      const data = statusMap.get(status) || { count: 0, expectedAmount: 0 }
+      cards.push({
+        status,
+        count: data.count,
+        color: status === 'New' ? 'bg-emerald-500' : 
+               status === 'In Follow Up' ? 'bg-blue-500' :
+               status === 'Not Responding' ? 'bg-orange-500' : 'bg-yellow-500',
+        textColor: status === 'New' ? 'text-emerald-600' : 
+                   status === 'In Follow Up' ? 'text-blue-600' :
+                   status === 'Not Responding' ? 'text-orange-600' : 'text-yellow-600',
+        icon: getIcon(status),
+        block: 2
+      })
+    })
+
+    // Block 3
+    STATUS_BLOCKS[3].forEach(status => {
+      if (status === 'Expected Amount') {
+        const totalExpected = Array.from(statusMap.values()).reduce((sum, data) => sum + data.expectedAmount, 0)
+        cards.push({
+          status,
+          count: 0,
+          expectedAmount: totalExpected,
+          color: 'bg-gradient-to-r from-green-500 to-emerald-500',
+          textColor: 'text-green-600',
+          icon: <DollarSign className="h-4 w-4" />,
+          block: 3
+        })
+      } else {
+        const data = statusMap.get(status) || { count: 0, expectedAmount: 0 }
+        cards.push({
+          status,
+          count: data.count,
+          expectedAmount: data.expectedAmount,
+          color: status === 'Hot' ? 'bg-red-500' :
+                 status === 'Warm' ? 'bg-orange-500' :
+                 status === 'Converted' ? 'bg-green-500' :
+                 status === 'Booked' ? 'bg-blue-500' : 'bg-slate-500',
+          textColor: status === 'Hot' ? 'text-red-600' :
+                     status === 'Warm' ? 'text-orange-600' :
+                     status === 'Converted' ? 'text-green-600' :
+                     status === 'Booked' ? 'text-blue-600' : 'text-slate-600',
+          icon: getIcon(status),
+          block: 3
+        })
+      }
+    })
+
+    // Block 4
+    STATUS_BLOCKS[4].forEach(status => {
+      const data = statusMap.get(status) || { count: 0, expectedAmount: 0 }
+      cards.push({
+        status,
+        count: data.count,
+        color: 'bg-gray-500',
+        textColor: 'text-gray-600',
+        icon: getIcon(status),
+        block: 4
+      })
+    })
+
+    // Block 5: Conversion Metrics
+    const totalLeads = filteredLeads.length
+    const bookedCount = statusMap.get('Booked')?.count || 0
+    const convertedCount = statusMap.get('Converted')?.count || 0
+    const appFailedCount = statusMap.get('App. Failed')?.count || 0
+
+    // Gross Conversion: Converted / Total Leads
+    const grossConversion = totalLeads > 0 ? ((convertedCount / totalLeads) * 100) : 0
+
+    // Net Conversion: Converted / Booked Leads
+    const netConversion = bookedCount > 0 ? ((convertedCount / bookedCount) * 100) : 0
+
+    cards.push({
+      status: 'Gross Conversion',
+      count: grossConversion,
+      color: 'bg-gradient-to-r from-green-500 to-emerald-500',
+      textColor: 'text-green-600',
+      icon: <TrendingUp className="h-4 w-4" />,
+      block: 5
+    })
+
+    cards.push({
+      status: 'Net Conversion',
+      count: netConversion,
+      color: 'bg-gradient-to-r from-amber-500 to-yellow-500',
+      textColor: 'text-amber-600',
+      icon: <Target className="h-4 w-4" />,
+      block: 5
+    })
+
+    // Block 6: BDE Performance - Booked / Total Leads
+    const bdeBookingRate = totalLeads > 0 ? ((bookedCount / totalLeads) * 100) : 0
+
+    cards.push({
+      status: 'BDE Booking Rate',
+      count: bdeBookingRate,
+      color: 'bg-gradient-to-r from-violet-500 to-purple-500',
+      textColor: 'text-violet-600',
+      icon: <CheckCircle className="h-4 w-4" />,
+      block: 6
+    })
+
+    // Block 7: Successful Appointments
+    const successfulAppointments = totalLeads > 0 ? (((totalLeads - appFailedCount) / totalLeads) * 100) : 0
+
+    cards.push({
+      status: 'Successful Appointments',
+      count: successfulAppointments,
+      color: 'bg-gradient-to-r from-cyan-500 to-blue-500',
+      textColor: 'text-cyan-600',
+      icon: <CheckCircle className="h-4 w-4" />,
+      block: 7
+    })
+
+    setStatusCards(cards)
+  }, [filteredLeadStatuses, filteredLeads])
+
+  useEffect(() => {
+    if (paymentLinks.length === 0 && manualPayments.length === 0) return
+
+    const linksInRange = paymentLinks.filter(p =>
+      isDateInRange(p.payment_date || p.created_at, date)
+    )
+    const manualInRange = manualPayments.filter(p =>
+      isDateInRange(p.payment_date || p.created_at, date)
+    )
+
+    const completed = [
+      ...linksInRange.filter(p => p.status === "completed").map(p => ({ ...p, source: "link" })),
+      ...manualInRange.filter(p => p.status === "completed").map(p => ({ ...p, source: "manual" })),
+    ]
+    const pending = [
+      ...linksInRange.filter(p => p.status === "pending"),
+      ...manualInRange.filter(p => p.status === "pending"),
+    ]
+
+    const totalCollected = completed.reduce((sum, p) => sum + (p.amount || 0), 0)
+    const now = new Date().getTime()
+    const oneWeekAgo = now - 7 * 24 * 60 * 60 * 1000
+    const twoWeeksAgo = now - 14 * 24 * 60 * 60 * 1000
+
+    const thisWeek = completed
+      .filter(p => new Date(p.payment_date || p.created_at).getTime() >= oneWeekAgo)
+      .reduce((sum, p) => sum + (p.amount || 0), 0)
+    const lastWeek = completed
+      .filter(p => {
+        const t = new Date(p.payment_date || p.created_at).getTime()
+        return t >= twoWeeksAgo && t < oneWeekAgo
+      })
+      .reduce((sum, p) => sum + (p.amount || 0), 0)
+    const growthRate = lastWeek > 0 ? ((thisWeek - lastWeek) / lastWeek) * 100 : 0
+
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000
+    const sevenDaysAhead = now + 7 * 24 * 60 * 60 * 1000
+    const overdue = pending
+      .filter(p => new Date(p.created_at).getTime() < thirtyDaysAgo)
+      .reduce((sum, p) => sum + (p.amount || 0), 0)
+    const dueSoon = pending
+      .filter(p => {
+        const exp = new Date(p.expires_at || p.plan_expiry || p.created_at).getTime()
+        return exp > now && exp <= sevenDaysAhead
+      })
+      .reduce((sum, p) => sum + (p.amount || 0), 0)
+    const outstandingBalance = pending.reduce((sum, p) => sum + (p.amount || 0), 0)
+    const recoveryRate =
+      totalCollected + outstandingBalance > 0
+        ? (totalCollected / (totalCollected + outstandingBalance)) * 100
+        : 0
+
+    setCollectionAnalytics({
+      totalCollected,
+      thisWeek,
+      lastWeek,
+      growthRate,
+      outstandingBalance,
+      overdue,
+      dueSoon,
+      recoveryRate,
+    })
+  }, [paymentLinks, manualPayments, date])
 
   const handleCardClick = (status: string) => {
-    if (status === "totalClients") {
+    if (status === 'Total Leads') {
       router.push("/leads")
-    } else if (status === "totalRevenue") {
-      router.push("/reports")
     } else {
-      const filterParam = status === "notReplying" ? "not_replying" : status
-      router.push(`/leads?status=${filterParam}`)
+      router.push(`/leads?status=${encodeURIComponent(status)}`)
     }
   }
 
-  // Enhanced clear filters function
- const handleClearFilters = () => {
-  setStatusFilter([])
-  setSourceFilter([])
-  setCityFilter([])
-  setPriorityFilter([])
-  setDate(undefined)
-}
+  const handleClearFilters = () => {
+    setStatusFilter([])
+    setSourceFilter([])
+  setRegionFilter([])
+    setPriorityFilter([])
+    setDate(undefined)
+  }
 
-const toggleStatusFilter = (status: string) => {
-  setStatusFilter(prev => 
-    prev.includes(status) 
-      ? prev.filter(s => s !== status)
-      : [...prev, status]
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilter(prev => 
+      prev.includes(status) 
+        ? prev.filter(s => s !== status)
+        : [...prev, status]
+    )
+  }
+
+  const toggleSourceFilter = (source: string) => {
+    setSourceFilter(prev => 
+      prev.includes(source) 
+        ? prev.filter(s => s !== source)
+        : [...prev, source]
+    )
+  }
+
+const toggleRegionFilter = (region: string) => {
+  setRegionFilter(prev => 
+    prev.includes(region) 
+      ? prev.filter(r => r !== region)
+      : [...prev, region]
   )
 }
 
-const toggleSourceFilter = (source: string) => {
-  setSourceFilter(prev => 
-    prev.includes(source) 
-      ? prev.filter(s => s !== source)
-      : [...prev, source]
-  )
-}
+  const togglePriorityFilter = (priority: string) => {
+    setPriorityFilter(prev => 
+      prev.includes(priority) 
+        ? prev.filter(p => p !== priority)
+        : [...prev, priority]
+    )
+  }
 
-const toggleCityFilter = (city: string) => {
-  setCityFilter(prev => 
-    prev.includes(city) 
-      ? prev.filter(c => c !== city)
-      : [...prev, city]
-  )
-}
-
-const togglePriorityFilter = (priority: string) => {
-  setPriorityFilter(prev => 
-    prev.includes(priority) 
-      ? prev.filter(p => p !== priority)
-      : [...prev, priority]
-  )
-}
-
-  // Refresh data function
   const handleRefreshData = () => {
     fetchData(true)
   }
 
-  // Check if any filters are active
-const hasActiveFilters = statusFilter.length > 0 || sourceFilter.length > 0 || cityFilter.length > 0 || priorityFilter.length > 0 || date?.from
+const hasActiveFilters = statusFilter.length > 0 || sourceFilter.length > 0 || regionFilter.length > 0 || priorityFilter.length > 0 || date?.from
 
   if (loading) {
     return (
@@ -679,9 +800,13 @@ const hasActiveFilters = statusFilter.length > 0 || sourceFilter.length > 0 || c
     )
   }
 
+  const block1Cards = statusCards.filter(c => c.block === 1)
+  const block2Cards = statusCards.filter(c => c.block === 2)
+  const block3Cards = statusCards.filter(c => c.block === 3)
+  const block4Cards = statusCards.filter(c => c.block === 4)
+
   return (
     <div className="space-y-6">
-      {/* Enhanced Filters Section */}
       <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -705,202 +830,186 @@ const hasActiveFilters = statusFilter.length > 0 || sourceFilter.length > 0 || c
             </Button>
           </div>
         </CardHeader>
-       <CardContent>
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-    {/* Date Range Filter */}
-    <div className="space-y-3">
-      <label className="text-sm font-semibold text-slate-700">Date Range</label>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className="w-full justify-start text-left font-normal border-emerald-200 hover:border-emerald-300 bg-transparent"
-          >
-            <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, "MMM dd")} - {format(date.to, "MMM dd")}
-                </>
-              ) : (
-                format(date.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick date range</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={setDate}
-            numberOfMonths={2}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-slate-700">Date Range</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal border-emerald-200 hover:border-emerald-300 bg-transparent"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-emerald-600" />
+                    {date?.from ? (
+                      date.to ? (
+                        <>
+                          {format(date.from, "MMM dd")} - {format(date.to, "MMM dd")}
+                        </>
+                      ) : (
+                        format(date.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={setDate}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-    {/* Status Filter */}
-    <div className="space-y-3">
-      <label className="text-sm font-semibold text-slate-700">
-        Status {statusFilter.length > 0 && `(${statusFilter.length})`}
-      </label>
-      <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
-        {availableStatuses.map(status => (
-          <div key={status} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
-            <Checkbox
-              id={`status-${status}`}
-              checked={statusFilter.includes(status)}
-              onCheckedChange={() => toggleStatusFilter(status)}
-              className="border-emerald-300 data-[state=checked]:bg-emerald-600"
-            />
-            <Label
-              htmlFor={`status-${status}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Label>
-          </div>
-        ))}
-        {availableStatuses.length === 0 && (
-          <p className="text-sm text-slate-500 text-center py-2">No statuses available</p>
-        )}
-      </div>
-    </div>
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-slate-700">
+                Status {statusFilter.length > 0 && `(${statusFilter.length})`}
+              </label>
+              <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
+                {availableStatuses.map(status => (
+                  <div key={status} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
+                    <Checkbox
+                      id={`status-${status}`}
+                      checked={statusFilter.includes(status)}
+                      onCheckedChange={() => toggleStatusFilter(status)}
+                      className="border-emerald-300 data-[state=checked]:bg-emerald-600"
+                    />
+                    <Label
+                      htmlFor={`status-${status}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </Label>
+                  </div>
+                ))}
+                {availableStatuses.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-2">No statuses available</p>
+                )}
+              </div>
+            </div>
 
-    {/* Source Filter */}
-    <div className="space-y-3">
-      <label className="text-sm font-semibold text-slate-700">
-        Source {sourceFilter.length > 0 && `(${sourceFilter.length})`}
-      </label>
-      <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
-        {availableSources.map(source => (
-          <div key={source} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
-            <Checkbox
-              id={`source-${source}`}
-              checked={sourceFilter.includes(source)}
-              onCheckedChange={() => toggleSourceFilter(source)}
-              className="border-emerald-300 data-[state=checked]:bg-emerald-600"
-            />
-            <Label
-              htmlFor={`source-${source}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              {source.charAt(0).toUpperCase() + source.slice(1)}
-            </Label>
-          </div>
-        ))}
-        {availableSources.length === 0 && (
-          <p className="text-sm text-slate-500 text-center py-2">No sources available</p>
-        )}
-      </div>
-    </div>
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-slate-700">
+                Source {sourceFilter.length > 0 && `(${sourceFilter.length})`}
+              </label>
+              <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
+                {availableSources.map(source => (
+                  <div key={source} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
+                    <Checkbox
+                      id={`source-${source}`}
+                      checked={sourceFilter.includes(source)}
+                      onCheckedChange={() => toggleSourceFilter(source)}
+                      className="border-emerald-300 data-[state=checked]:bg-emerald-600"
+                    />
+                    <Label htmlFor={`source-${source}`} className="text-sm font-medium cursor-pointer">
+                      {source}
+                    </Label>
+                  </div>
+                ))}
+                {availableSources.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-2">No sources available</p>
+                )}
+              </div>
+            </div>
 
-    {/* City Filter */}
-    <div className="space-y-3">
-      <label className="text-sm font-semibold text-slate-700">
-        City {cityFilter.length > 0 && `(${cityFilter.length})`}
-      </label>
-      <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
-        {availableCities.map(city => (
-          <div key={city} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
-            <Checkbox
-              id={`city-${city}`}
-              checked={cityFilter.includes(city)}
-              onCheckedChange={() => toggleCityFilter(city)}
-              className="border-emerald-300 data-[state=checked]:bg-emerald-600"
-            />
-            <Label
-              htmlFor={`city-${city}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              {city}
-            </Label>
-          </div>
-        ))}
-        {availableCities.length === 0 && (
-          <p className="text-sm text-slate-500 text-center py-2">No cities available</p>
-        )}
+          <div className="space-y-3">
+  <label className="text-sm font-semibold text-slate-700">
+    Region {regionFilter.length > 0 && `(${regionFilter.length})`}
+  </label>
+  <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
+    {availableRegions.map(region => (
+      <div key={region} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
+        <Checkbox
+          id={`region-${region}`}
+          checked={regionFilter.includes(region)}
+          onCheckedChange={() => toggleRegionFilter(region)}
+          className="border-emerald-300 data-[state=checked]:bg-emerald-600"
+        />
+        <Label htmlFor={`region-${region}`} className="text-sm font-medium cursor-pointer">
+          {region}
+        </Label>
       </div>
-    </div>
-
-    {/* Priority Filter */}
-    <div className="space-y-3">
-      <label className="text-sm font-semibold text-slate-700">
-        Priority {priorityFilter.length > 0 && `(${priorityFilter.length})`}
-      </label>
-      <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
-        {availablePriorities.map(priority => (
-          <div key={priority} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
-            <Checkbox
-              id={`priority-${priority}`}
-              checked={priorityFilter.includes(priority)}
-              onCheckedChange={() => togglePriorityFilter(priority)}
-              className="border-emerald-300 data-[state=checked]:bg-emerald-600"
-            />
-            <Label
-              htmlFor={`priority-${priority}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-            >
-              {priority.charAt(0).toUpperCase() + priority.slice(1)}
-            </Label>
-          </div>
-        ))}
-        {availablePriorities.length === 0 && (
-          <p className="text-sm text-slate-500 text-center py-2">No priorities available</p>
-        )}
-      </div>
-    </div>
+    ))}
+    {availableRegions.length === 0 && (
+      <p className="text-sm text-slate-500 text-center py-2">No regions available</p>
+    )}
   </div>
+</div>
 
-  {/* Clear Filters Button - Moved outside grid */}
-  <div className="mt-4 flex justify-end">
-    <Button
-      onClick={handleClearFilters}
-      variant="outline"
-      className="border-emerald-200 hover:border-emerald-300 text-emerald-600 hover:text-emerald-700 bg-transparent"
-      disabled={!hasActiveFilters}
-    >
-      <X className="h-4 w-4 mr-2" />
-      Clear All Filters
-    </Button>
-  </div>
-</CardContent>
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-slate-700">
+                Priority {priorityFilter.length > 0 && `(${priorityFilter.length})`}
+              </label>
+              <div className="space-y-2 max-h-48 overflow-y-auto p-3 border border-emerald-200 rounded-lg bg-white/50">
+                {availablePriorities.map(priority => (
+                  <div key={priority} className="flex items-center space-x-2 hover:bg-emerald-50 p-1.5 rounded transition-colors">
+                    <Checkbox
+                      id={`priority-${priority}`}
+                      checked={priorityFilter.includes(priority)}
+                      onCheckedChange={() => togglePriorityFilter(priority)}
+                      className="border-emerald-300 data-[state=checked]:bg-emerald-600"
+                    />
+                    <Label htmlFor={`priority-${priority}`} className="text-sm font-medium cursor-pointer">
+                      {priority}
+                    </Label>
+                  </div>
+                ))}
+                {availablePriorities.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-2">No priorities available</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <Button
+              onClick={handleClearFilters}
+              variant="outline"
+              className="border-emerald-200 hover:border-emerald-300 text-emerald-600 hover:text-emerald-700 bg-transparent"
+              disabled={!hasActiveFilters}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Clear All Filters
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
-      {/* Filter Summary */}
       {hasActiveFilters && (
         <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-emerald-50">
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
+              <div className="flex items-center gap-2 text-sm text-slate-600 flex-wrap">
                 <Filter className="h-4 w-4" />
                 <span>
                   Showing {filteredLeads.length} of {allLeads.length} leads
                 </span>
-               {statusFilter.length > 0 && (
-  <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs">
-    Status: {statusFilter.length} selected
-  </span>
-)}
-{sourceFilter.length > 0 && (
-  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
-    Source: {sourceFilter.length} selected
-  </span>
-)}
-{cityFilter.length > 0 && (
+                {statusFilter.length > 0 && (
+                  <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs">
+                    Status: {statusFilter.length} selected
+                  </span>
+                )}
+                {sourceFilter.length > 0 && (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">
+                    Source: {sourceFilter.length} selected
+                  </span>
+                )}
+                {regionFilter.length > 0 && (
   <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
-    City: {cityFilter.length} selected
+    Region: {regionFilter.length} selected
   </span>
 )}
-{priorityFilter.length > 0 && (
-  <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
-    Priority: {priorityFilter.length} selected
-  </span>
-)}
+                {priorityFilter.length > 0 && (
+                  <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
+                    Priority: {priorityFilter.length} selected
+                  </span>
+                )}
                 {date?.from && (
                   <span className="px-2 py-1 bg-pink-100 text-pink-700 rounded-full text-xs">
                     Date Range Applied
@@ -912,57 +1021,238 @@ const hasActiveFilters = statusFilter.length > 0 || sourceFilter.length > 0 || c
         </Card>
       )}
 
-      {/* Modern Analytics Blocks */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-        {Object.entries(analyticsData).map(([key, data]) => (
-          <Card
-            key={key}
-            onClick={() => handleCardClick(key)}
-            className={`relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 cursor-pointer ${
-              data.isSpecial
-                ? "bg-gradient-to-br from-gray-200 via-gray-50 to-gray-200 border-2 border-transparent"
-                : "bg-white/90 backdrop-blur-sm"
-            }`}
-          >
-            <div className={`absolute top-0 left-0 right-0 h-1 ${data.isSpecial ? data.color : data.color}`} />
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle
-                className={`text-sm font-medium capitalize ${data.isSpecial ? "text-slate-800 font-semibold" : "text-slate-700"}`}
+      {/* Block 1: Total Leads */}
+      {block1Cards.length > 0 && (
+        <div className="grid grid-cols-1">
+          {block1Cards.map((card) => (
+            <Card
+              key={card.status}
+              onClick={() => handleCardClick(card.status)}
+              className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 cursor-pointer bg-gradient-to-br from-gray-200 via-gray-50 to-gray-200 border-2 border-transparent"
+            >
+              <div className={`absolute top-0 left-0 right-0 h-1 ${card.color}`} />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-semibold capitalize text-slate-800">
+                  {hasFullAccess ? card.status : "Assigned Leads"}
+                </CardTitle>
+                <div className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${card.color} shadow-lg`}>
+                  {card.icon}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-slate-800">{card.count}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Block 2: New, Follow Ups, Not Responding, Yet To Talk */}
+      {block2Cards.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">Lead Pipeline</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {block2Cards.map((card) => (
+              <Card
+                key={card.status}
+                onClick={() => handleCardClick(card.status)}
+                className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 cursor-pointer bg-white/90 backdrop-blur-sm"
               >
-                {key === "totalClients"
-                  ? hasFullAccess
-                    ? "Total Leads"
-                    : "Assigned Leads"
-                  : key === "totalRevenue"
-                    ? "Total Revenue"
-                    : key}
-              </CardTitle>
-              <div
-                className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${
-                  data.isSpecial ? `${data.color} shadow-lg` : data.color
+                <div className={`absolute top-0 left-0 right-0 h-1 ${card.color}`} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium capitalize text-slate-700">
+                    {card.status}
+                  </CardTitle>
+                  <div className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${card.color}`}>
+                    {card.icon}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-4xl font-bold ${card.textColor}`}>{card.count}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Block 3: Booked, Hot, Warm, etc */}
+      {block3Cards.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">Lead Progress & Revenue</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {block3Cards.map((card) => (
+              <Card
+                key={card.status}
+                onClick={() => card.status !== 'Expected Amount' && handleCardClick(card.status)}
+                className={`relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 ${
+                  card.status === 'Expected Amount' ? 'bg-gradient-to-br from-gray-200 via-gray-50 to-gray-200 col-span-1 md:col-span-2 lg:col-span-1' : 'bg-white/90 backdrop-blur-sm cursor-pointer'
                 }`}
               >
-                {getIcon(key)}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-4xl font-bold ${data.isSpecial ? "text-slate-800" : data.textColor}`}>
-                {key === "totalRevenue" ? (
-                  <div className="flex text-xl items-center">
-                    <IndianRupee className="h-5 w-5 mr-1" />
-                    {data.count.toLocaleString()}
+                <div className={`absolute top-0 left-0 right-0 h-1 ${card.color}`} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className={`text-sm font-medium capitalize ${card.status === 'Expected Amount' ? 'text-slate-800 font-semibold' : 'text-slate-700'}`}>
+                    {card.status}
+                  </CardTitle>
+                  <div className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${card.color} ${card.status === 'Expected Amount' ? 'shadow-lg' : ''}`}>
+                    {card.icon}
                   </div>
-                ) : (
-                  data.count
-                )}
-              </div>
-           
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                </CardHeader>
+                <CardContent>
+                  {card.status === 'Expected Amount' ? (
+                    <div className="flex text-xl items-center text-slate-800 font-bold">
+                      <IndianRupee className="h-5 w-5 mr-1" />
+                      {(card.expectedAmount || 0).toLocaleString()}
+                    </div>
+                  ) : (
+                    <>
+                      <div className={`text-4xl font-bold ${card.textColor}`}>{card.count}</div>
+                      {card.expectedAmount && card.expectedAmount > 0 && (
+                        <div className="flex text-xs items-center text-slate-600 mt-2">
+                          <IndianRupee className="h-3 w-3 mr-1" />
+                          {card.expectedAmount.toLocaleString()}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Enhanced Collection and Balance Due - NOW CORRECTLY ROLE-FILTERED */}
+      {/* Block 4: Cold & Lost */}
+      {block4Cards.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">Closed Leads</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {block4Cards.map((card) => (
+              <Card
+                key={card.status}
+                onClick={() => handleCardClick(card.status)}
+                className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 cursor-pointer bg-white/90 backdrop-blur-sm"
+              >
+                <div className={`absolute top-0 left-0 right-0 h-1 ${card.color}`} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium capitalize text-slate-700">
+                    {card.status}
+                  </CardTitle>
+                  <div className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${card.color}`}>
+                    {card.icon}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-4xl font-bold ${card.textColor}`}>{card.count}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Block 5: Conversion Metrics */}
+      {statusCards.filter(c => c.block === 5).length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">Conversion Analytics</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {statusCards.filter(c => c.block === 5).map((card) => (
+              <Card
+                key={card.status}
+                className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 bg-gradient-to-br from-gray-200 via-gray-50 to-gray-200"
+              >
+                <div className={`absolute top-0 left-0 right-0 h-1 ${card.color}`} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-semibold text-slate-800">
+                    {card.status}
+                  </CardTitle>
+                  <div className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${card.color} shadow-lg`}>
+                    {card.icon}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-4xl font-bold text-slate-800">
+                    {card.count.toFixed(1)}%
+                  </div>
+                  <p className="text-xs text-slate-600 mt-2">
+                    {card.status === 'Gross Conversion' 
+                      ? 'Converted / Total Leads' 
+                      : 'Converted / Booked Leads'}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Block 6: BDE Performance */}
+      {statusCards.filter(c => c.block === 6).length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">BDE Performance</h3>
+          <div className="grid grid-cols-1">
+            {statusCards.filter(c => c.block === 6).map((card) => (
+              <Card
+                key={card.status}
+                className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 bg-gradient-to-br from-violet-50 to-purple-50"
+              >
+                <div className={`absolute top-0 left-0 right-0 h-1 ${card.color}`} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-semibold text-slate-800">
+                    {card.status}
+                  </CardTitle>
+                  <div className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${card.color} shadow-lg`}>
+                    {card.icon}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-4xl font-bold text-violet-600">
+                    {card.count.toFixed(1)}%
+                  </div>
+                  <p className="text-xs text-slate-600 mt-2">
+                    Booked / Total Leads
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Block 7: Successful Appointments */}
+      {statusCards.filter(c => c.block === 7).length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">Appointment Success Rate</h3>
+          <div className="grid grid-cols-1">
+            {statusCards.filter(c => c.block === 7).map((card) => (
+              <Card
+                key={card.status}
+                className="relative overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group hover:scale-105 bg-gradient-to-br from-cyan-50 to-blue-50"
+              >
+                <div className={`absolute top-0 left-0 right-0 h-1 ${card.color}`} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-semibold text-slate-800">
+                    {card.status}
+                  </CardTitle>
+                  <div className={`p-2 rounded-full text-white group-hover:scale-110 transition-transform ${card.color} shadow-lg`}>
+                    {card.icon}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-4xl font-bold text-cyan-600">
+                    {card.count.toFixed(1)}%
+                  </div>
+                  <p className="text-xs text-slate-600 mt-2">
+                    (Total Leads - Failed) / Total Leads × 100
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Collection Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card
           onClick={() => router.push("/reports")}
@@ -1048,63 +1338,6 @@ const hasActiveFilters = statusFilter.length > 0 || sourceFilter.length > 0 || c
           </CardContent>
         </Card>
       </div>
-
-      {/* Enhanced Recent Activity */}
-      <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle className="text-emerald-700">Recent Activity Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivity.length > 0 ? (
-              recentActivity.map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-emerald-50 rounded-lg hover:shadow-md transition-all duration-300 border border-emerald-100"
-                >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        activity.status === "new"
-                          ? "bg-emerald-500"
-                          : activity.status === "warm"
-                            ? "bg-orange-500"
-                            : activity.status === "hot"
-                              ? "bg-red-500"
-                              : "bg-blue-500"
-                      } shadow-lg`}
-                    />
-                    <div>
-                      <p className="font-medium text-slate-800">{activity.action}</p>
-                      <p className="text-sm text-slate-600">{activity.client}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm text-slate-500">{activity.time}</span>
-                    <div
-                      className={`text-xs px-2 py-1 rounded-full mt-1 ${
-                        activity.priority === "high"
-                          ? "bg-red-100 text-red-700"
-                          : activity.priority === "medium"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {activity.priority}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-slate-500">
-                <Clock className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                <p>No recent activity found</p>
-                <p className="text-sm">Activity will appear here based on your current filters</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
