@@ -1722,780 +1722,803 @@ const fetchRenewalReports = async () => {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-              <span className="ml-2 text-emerald-600">Loading data...</span>
-            </div>
-          ) : reportDataInfo.totalItems === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-slate-500">
-              <FileText className="h-12 w-12 mb-4 text-slate-300" />
-              <h3 className="text-lg font-medium mb-2">No Data Available</h3>
-              <p className="text-sm text-center">
-                {currentUserRole === EXECUTIVE_ROLE && assignedLeadIds.length === 0
-                  ? "You don't have any assigned leads yet."
-                  : "No data found for the selected report type and filters."}
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {/* Balance Report Headers */}
-                  {activeReport === "balance" && (
-                    <>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("clientName")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Client Name
-                          {getSortIcon("clientName")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("package")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Package
-                          {getSortIcon("package")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("totalAmount")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Total Amount
-                          {getSortIcon("totalAmount")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("amountPaid")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Amount Paid
-                          {getSortIcon("amountPaid")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("balance")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Balance
-                          {getSortIcon("balance")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("dueDate")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Due Date
-                          {getSortIcon("dueDate")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("dueDays")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Due Days
-                          {getSortIcon("dueDays")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>Coach</TableHead>
-                    </>
-                  )}
 
-                  {/* Sales Report Headers */}
-                  {activeReport === "sales" && (
-                    <>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("date")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Date
-                          {getSortIcon("date")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Client</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("package")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Package
-                          {getSortIcon("package")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("amount")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Amount
-                          {getSortIcon("amount")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Upsell/Renewal</TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("balance")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Balance
-                          {getSortIcon("balance")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>City</TableHead>
-                      <TableHead>Source</TableHead>
-                    </>
-                  )}
-
-                  {/* Membership Activation Headers */}
-                  {activeReport === "activation" && (
-                    <>
-                      <TableHead>Client Name</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>Package</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("joiningDate")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Joining Date
-                          {getSortIcon("joiningDate")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Activation Date</TableHead>
-                      <TableHead>Expiry Date</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("leftDays")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Left Days
-                          {getSortIcon("leftDays")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>Coach</TableHead>
-                    </>
-                  )}
-
-                  {/* Membership Expiry Headers */}
-                  {activeReport === "expiry" && (
-                    <>
-                      <TableHead>Client Name</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>Package</TableHead>
-                      <TableHead>Joining Date</TableHead>
-                      <TableHead>Activation Date</TableHead>
-                      <TableHead>Expiry Date</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("leftDays")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Left Days
-                          {getSortIcon("leftDays")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>Coach</TableHead>
-                      <TableHead>Renewal Status</TableHead>
-                    </>
-                  )}
-
-                  {/* Renewal Report Headers */}
-                  {activeReport === "renewal" && (
-                    <>
-                      <TableHead>Client Name</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>Package</TableHead>
-                      <TableHead>Joining Date</TableHead>
-                      <TableHead>Activation Date</TableHead>
-                      <TableHead>Expiry Date</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("leftDays")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Left Days
-                          {getSortIcon("leftDays")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>Coach</TableHead>
-                      <TableHead>Renewal Month</TableHead>
-                    </>
-                  )}
-
-                  {/* Freezing Report Headers */}
-                  {activeReport === "freezing" && (
-                    <>
-                      <TableHead>Client Name</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>Package</TableHead>
-                      <TableHead>Activation Date</TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort("frozenDays")}
-                          className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
-                        >
-                          Frozen Days
-                          {getSortIcon("frozenDays")}
-                        </Button>
-                      </TableHead>
-                      <TableHead>Updated Expiry Date</TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>Coach</TableHead>
-                      <TableHead>Reason</TableHead>
-                    </>
-                  )}
-
-                  {/* Follow-up Report Headers */}
-                  {activeReport === "followup" && (
-                    <>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>Last Contact</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Lead Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Follow Up Date</TableHead>
-                      <TableHead>Attempts</TableHead>
-                    </>
-                  )}
-
-                  {/* Appointment Report Headers */}
-                  {activeReport === "appointments" && (
-                    <>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>BDE</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Lead Date</TableHead>
-                      <TableHead>Follow Up Date</TableHead>
-                      <TableHead>Attempts</TableHead>
-                      <TableHead>Status</TableHead>
-                    </>
-                  )}
-
-                  {/* Referral Report Headers */}
-                  {activeReport === "referral" && (
-                    <>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Contact #</TableHead>
-                      <TableHead>Referred By</TableHead>
-                      <TableHead>Referrer's #</TableHead>
-                      <TableHead>Counselor</TableHead>
-                      <TableHead>Lead Date</TableHead>
-                      <TableHead>Lead Status</TableHead>
-                      <TableHead>Follow Up Date</TableHead>
-                    </>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportData.map((item, index) => (
-                  <TableRow key={index} className="hover:bg-emerald-50/50">
-                    {/* Balance Report Rows */}
-                    {activeReport === "balance" && (
-                      <>
-                        <TableCell className="font-medium">{item.clientName}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
-                            {item.package}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium text-emerald-600">
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />₹{item.totalAmount.toLocaleString()}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium text-emerald-600">
-                          <div className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />₹{item.amountPaid.toLocaleString()}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {item.balance > 0 ? (
-                            <div className="flex items-center gap-1 text-red-600 font-medium">
-                              <AlertTriangle className="h-3 w-3" />₹{item.balance.toLocaleString()}
-                            </div>
-                          ) : (
-                            <span className="text-emerald-600 font-medium">Paid</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            <span className={item.dueDays < 0 ? "text-red-600 font-medium" : ""}>
-                              {item.dueDate !== "Not Set" ? new Date(item.dueDate).toLocaleDateString() : "Not Set"}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.dueDays < 0
-                                ? "bg-red-100 text-red-700 border-red-200"
-                                : item.dueDays <= 7
-                                  ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                                  : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            }
-                          >
-                            {item.dueDays} days
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>{item.coach}</TableCell>
-                      </>
-                    )}
-
-                    {/* Sales Report Rows */}
-                    {activeReport === "sales" && (
-                      <>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-emerald-600" />
-                            {format(new Date(item.date), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{item.clientName}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
-                            {item.package}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-medium text-emerald-600">
-                          <div className="flex items-center gap-1">₹{item.amount.toLocaleString()}</div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.upsellRenewal === "Upsell"
-                                ? "bg-purple-100 text-purple-700 border-purple-200"
-                                : item.upsellRenewal === "Renewal"
-                                  ? "bg-blue-100 text-blue-700 border-blue-200"
-                                  : "bg-green-100 text-green-700 border-green-200"
-                            }
-                          >
-                            {item.upsellRenewal}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>
-                          {item.balance > 0 ? (
-                            <span className="text-red-600 font-medium">₹{item.balance.toLocaleString()}</span>
-                          ) : (
-                            <span className="text-emerald-600">Paid</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-slate-200 text-slate-700">
-                            {item.city}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-blue-200 text-blue-700">
-                            {item.source}
-                          </Badge>
-                        </TableCell>
-                      </>
-                    )}
-
-                    {/* Membership Activation Rows */}
-                    {activeReport === "activation" && (
-                      <>
-                        <TableCell className="font-medium">{item.clientName}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
-                            {item.package}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {format(new Date(item.joiningDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-emerald-600" />
-                            {format(new Date(item.activationDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {item.expiryDate !== "Not Set" ? format(new Date(item.expiryDate), "LLL dd, yyyy") : "Not Set"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.leftDays <= 0
-                                ? "bg-red-100 text-red-700 border-red-200"
-                                : item.leftDays <= 30
-                                  ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                                  : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            }
-                          >
-                            {item.leftDays} days
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>{item.coach}</TableCell>
-                      </>
-                    )}
-
-                    {/* Membership Expiry Rows */}
-                    {activeReport === "expiry" && (
-                      <>
-                        <TableCell className="font-medium">{item.clientName}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
-                            {item.package}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {format(new Date(item.joiningDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-emerald-600" />
-                            {format(new Date(item.activationDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            <span className={item.leftDays <= 0 ? "text-red-600 font-medium" : ""}>
-                              {format(new Date(item.expiryDate), "LLL dd, yyyy")}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.leftDays <= 0
-                                ? "bg-red-100 text-red-700 border-red-200"
-                                : item.leftDays <= 30
-                                  ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                                  : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            }
-                          >
-                            {item.leftDays} days
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>{item.coach}</TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.renewalStatus === "Expired"
-                                ? "bg-red-100 text-red-700 border-red-200"
-                                : item.renewalStatus === "Renewal Due"
-                                  ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                                  : item.renewalStatus === "Upcoming Renewal"
-                                    ? "bg-blue-100 text-blue-700 border-blue-200"
-                                    : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            }
-                          >
-                            {item.renewalStatus}
-                          </Badge>
-                        </TableCell>
-                      </>
-                    )}
-
-                    {/* Renewal Report Rows */}
-                    {activeReport === "renewal" && (
-                      <>
-                        <TableCell className="font-medium">{item.clientName}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
-                            {item.package}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {format(new Date(item.joiningDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-emerald-600" />
-                            {format(new Date(item.activationDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            <span className={item.leftDays <= 0 ? "text-red-600 font-medium" : ""}>
-                              {format(new Date(item.expiryDate), "LLL dd, yyyy")}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.leftDays <= 0
-                                ? "bg-red-100 text-red-700 border-red-200"
-                                : item.leftDays <= 30
-                                  ? "bg-yellow-100 text-yellow-700 border-yellow-200"
-                                  : "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            }
-                          >
-                            {item.leftDays} days
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>{item.coach}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-purple-200 text-purple-700">
-                            {item.renewalMonth}
-                          </Badge>
-                        </TableCell>
-                      </>
-                    )}
-
-                    {/* Freezing Report Rows */}
-                    {activeReport === "freezing" && (
-                      <>
-                        <TableCell className="font-medium">{item.clientName}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-blue-200 text-blue-700">
-                            {item.package}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {item.activationDate !== "N/A" ? format(new Date(item.activationDate), "LLL dd, yyyy") : "N/A"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                            {item.frozenDays} days
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {item.updatedExpiryDate !== "Not Set" ? format(new Date(item.updatedExpiryDate), "LLL dd, yyyy") : "Not Set"}
-                          </div>
-                        </TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>{item.coach}</TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.reason === "Processed"
-                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                            }
-                          >
-                            {item.reason}
-                          </Badge>
-                        </TableCell>
-                      </>
-                    )}
-
-                    {/* Follow-up Report Rows */}
-                    {activeReport === "followup" && (
-                      <>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {format(new Date(item.lastContact), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
-                            {item.source}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {format(new Date(item.leadDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.status === "Done"
-                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                : item.status === "Failed"
-                                  ? "bg-red-100 text-red-700 border-red-200"
-                                  : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                            }
-                          >
-                            {item.status === "Done" ? (
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                            ) : item.status === "Failed" ? (
-                              <XCircle className="h-3 w-3 mr-1" />
-                            ) : (
-                              <Clock className="h-3 w-3 mr-1" />
-                            )}
-                            {item.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-emerald-600" />
-                            {item.followUpDate !== "Not Set" ? format(new Date(item.followUpDate), "LLL dd, yyyy") : "Not Set"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-blue-200 text-blue-700">
-                            {item.attempts}
-                          </Badge>
-                        </TableCell>
-                      </>
-                    )}
-
-                    {/* Appointment Report Rows */}
-                    {activeReport === "appointments" && (
-                      <>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>{item.bde}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-emerald-200 text-emerald-700">
-                            {item.source}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {format(new Date(item.leadDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-emerald-600" />
-                            {item.followUpDate !== "Not Set" ? format(new Date(item.followUpDate), "LLL dd, yyyy") : "Not Set"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="border-blue-200 text-blue-700">
-                            {item.attempts}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.appointmentStatus === "Successful"
-                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                : item.appointmentStatus === "Failed"
-                                  ? "bg-red-100 text-red-700 border-red-200"
-                                  : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                            }
-                          >
-                            {item.appointmentStatus === "Successful" ? (
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                            ) : item.appointmentStatus === "Failed" ? (
-                              <XCircle className="h-3 w-3 mr-1" />
-                            ) : (
-                              <Clock className="h-3 w-3 mr-1" />
-                            )}
-                            {item.appointmentStatus}
-                          </Badge>
-                        </TableCell>
-                      </>
-                    )}
-
-                    {/* Referral Report Rows */}
-                    {activeReport === "referral" && (
-                      <>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.contact}</TableCell>
-                        <TableCell>{item.referredBy}</TableCell>
-                        <TableCell>{item.referrerContact}</TableCell>
-                        <TableCell>{item.counselor}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-slate-500" />
-                            {format(new Date(item.leadDate), "LLL dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              item.leadStatus === "Converted"
-                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                : item.leadStatus === "Lost"
-                                  ? "bg-red-100 text-red-700 border-red-200"
-                                  : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                            }
-                          >
-                            {item.leadStatus === "Converted" ? (
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                            ) : item.leadStatus === "Lost" ? (
-                              <XCircle className="h-3 w-3 mr-1" />
-                            ) : (
-                              <Clock className="h-3 w-3 mr-1" />
-                            )}
-                            {item.leadStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <CalendarIcon className="h-3 w-3 text-emerald-600" />
-                            {item.followUpDate !== "Not Set" ? format(new Date(item.followUpDate), "LLL dd, yyyy") : "Not Set"}
-                          </div>
-                        </TableCell>
-                      </>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+{loading ? (
+  <div className="flex items-center justify-center py-8">
+    <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+    <span className="ml-2 text-emerald-600">Loading data...</span>
+  </div>
+) : (
+  <div className="overflow-x-auto">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {/* Balance Report Headers */}
+          {activeReport === "balance" && (
+            <>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("clientName")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Client Name
+                  {getSortIcon("clientName")}
+                </Button>
+              </TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("package")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Package
+                  {getSortIcon("package")}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("totalAmount")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Total Amount
+                  {getSortIcon("totalAmount")}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("amountPaid")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Amount Paid
+                  {getSortIcon("amountPaid")}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("balance")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Balance
+                  {getSortIcon("balance")}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("dueDate")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Due Date
+                  {getSortIcon("dueDate")}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("dueDays")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Due Days
+                  {getSortIcon("dueDays")}
+                </Button>
+              </TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>Coach</TableHead>
+            </>
           )}
+
+          {/* Sales Report Headers */}
+          {activeReport === "sales" && (
+            <>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("date")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Date
+                  {getSortIcon("date")}
+                </Button>
+              </TableHead>
+              <TableHead>Client</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("package")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Package
+                  {getSortIcon("package")}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("amount")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Amount
+                  {getSortIcon("amount")}
+                </Button>
+              </TableHead>
+              <TableHead>Upsell/Renewal</TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("balance")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Balance
+                  {getSortIcon("balance")}
+                </Button>
+              </TableHead>
+              <TableHead>City</TableHead>
+              <TableHead>Source</TableHead>
+            </>
+          )}
+
+          {/* Membership Activation Headers */}
+          {activeReport === "activation" && (
+            <>
+              <TableHead>Client Name</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>Package</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("joiningDate")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Joining Date
+                  {getSortIcon("joiningDate")}
+                </Button>
+              </TableHead>
+              <TableHead>Activation Date</TableHead>
+              <TableHead>Expiry Date</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("leftDays")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Left Days
+                  {getSortIcon("leftDays")}
+                </Button>
+              </TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>Coach</TableHead>
+            </>
+          )}
+
+          {/* Membership Expiry Headers */}
+          {activeReport === "expiry" && (
+            <>
+              <TableHead>Client Name</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>Package</TableHead>
+              <TableHead>Joining Date</TableHead>
+              <TableHead>Activation Date</TableHead>
+              <TableHead>Expiry Date</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("leftDays")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Left Days
+                  {getSortIcon("leftDays")}
+                </Button>
+              </TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>Coach</TableHead>
+              <TableHead>Renewal Status</TableHead>
+            </>
+          )}
+
+          {/* Renewal Report Headers */}
+          {activeReport === "renewal" && (
+            <>
+              <TableHead>Client Name</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>Package</TableHead>
+              <TableHead>Joining Date</TableHead>
+              <TableHead>Activation Date</TableHead>
+              <TableHead>Expiry Date</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("leftDays")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Left Days
+                  {getSortIcon("leftDays")}
+                </Button>
+              </TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>Coach</TableHead>
+              <TableHead>Renewal Month</TableHead>
+            </>
+          )}
+
+          {/* Freezing Report Headers */}
+          {activeReport === "freezing" && (
+            <>
+              <TableHead>Client Name</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>Package</TableHead>
+              <TableHead>Activation Date</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort("frozenDays")}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center gap-1"
+                >
+                  Frozen Days
+                  {getSortIcon("frozenDays")}
+                </Button>
+              </TableHead>
+              <TableHead>Updated Expiry Date</TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>Coach</TableHead>
+              <TableHead>Reason</TableHead>
+            </>
+          )}
+
+          {/* Follow-up Report Headers */}
+          {activeReport === "followup" && (
+            <>
+              <TableHead>Name</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>Last Contact</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Lead Date</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Follow Up Date</TableHead>
+              <TableHead>Attempts</TableHead>
+            </>
+          )}
+
+          {/* Appointment Report Headers */}
+          {activeReport === "appointments" && (
+            <>
+              <TableHead>Name</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>BDE</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Lead Date</TableHead>
+              <TableHead>Follow Up Date</TableHead>
+              <TableHead>Attempts</TableHead>
+              <TableHead>Status</TableHead>
+            </>
+          )}
+
+          {/* Referral Report Headers */}
+          {activeReport === "referral" && (
+            <>
+              <TableHead>Name</TableHead>
+              <TableHead>Contact #</TableHead>
+              <TableHead>Referred By</TableHead>
+              <TableHead>Referrer's #</TableHead>
+              <TableHead>Counselor</TableHead>
+              <TableHead>Lead Date</TableHead>
+              <TableHead>Lead Status</TableHead>
+              <TableHead>Follow Up Date</TableHead>
+            </>
+          )}
+        </TableRow>
+      </TableHeader>
+      
+      <TableBody>
+        {reportDataInfo.totalItems === 0 ? (
+          <TableRow>
+            <TableCell 
+              colSpan={
+                activeReport === "balance" ? 10 :
+                activeReport === "sales" ? 10 :
+                activeReport === "activation" ? 9 :
+                activeReport === "expiry" ? 10 :
+                activeReport === "renewal" ? 10 :
+                activeReport === "freezing" ? 9 :
+                activeReport === "followup" ? 9 :
+                activeReport === "appointments" ? 9 :
+                activeReport === "referral" ? 8 : 1
+              }
+              className="text-center py-8"
+            >
+              <div className="flex flex-col items-center justify-center text-slate-500">
+                <FileText className="h-12 w-12 mb-4 text-slate-300" />
+                <h3 className="text-lg font-medium mb-2">No Data Available</h3>
+                <p className="text-sm text-center">
+                  {currentUserRole === EXECUTIVE_ROLE && assignedLeadIds.length === 0
+                    ? "You don't have any assigned leads yet."
+                    : "No data found for the selected report type and filters."}
+                </p>
+              </div>
+            </TableCell>
+          </TableRow>
+        ) : (
+          reportData.map((item, index) => (
+            <TableRow key={index} className="hover:bg-emerald-50/50">
+              {/* Balance Report Rows */}
+              {activeReport === "balance" && (
+                <>
+                  <TableCell className="font-medium">{item.clientName}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+                      {item.package}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium text-emerald-600">
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" />₹{item.totalAmount.toLocaleString()}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium text-emerald-600">
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="h-3 w-3" />₹{item.amountPaid.toLocaleString()}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {item.balance > 0 ? (
+                      <div className="flex items-center gap-1 text-red-600 font-medium">
+                        <AlertTriangle className="h-3 w-3" />₹{item.balance.toLocaleString()}
+                      </div>
+                    ) : (
+                      <span className="text-emerald-600 font-medium">Paid</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      <span className={item.dueDays < 0 ? "text-red-600 font-medium" : ""}>
+                        {item.dueDate !== "Not Set" ? new Date(item.dueDate).toLocaleDateString() : "Not Set"}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.dueDays < 0
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : item.dueDays <= 7
+                            ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                            : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      }
+                    >
+                      {item.dueDays} days
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>{item.coach}</TableCell>
+                </>
+              )}
+
+              {/* Sales Report Rows */}
+              {activeReport === "sales" && (
+                <>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-emerald-600" />
+                      {format(new Date(item.date), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{item.clientName}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+                      {item.package}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-medium text-emerald-600">
+                    <div className="flex items-center gap-1">₹{item.amount.toLocaleString()}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.upsellRenewal === "Upsell"
+                          ? "bg-purple-100 text-purple-700 border-purple-200"
+                          : item.upsellRenewal === "Renewal"
+                            ? "bg-blue-100 text-blue-700 border-blue-200"
+                            : "bg-green-100 text-green-700 border-green-200"
+                      }
+                    >
+                      {item.upsellRenewal}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>
+                    {item.balance > 0 ? (
+                      <span className="text-red-600 font-medium">₹{item.balance.toLocaleString()}</span>
+                    ) : (
+                      <span className="text-emerald-600">Paid</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-slate-200 text-slate-700">
+                      {item.city}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-blue-200 text-blue-700">
+                      {item.source}
+                    </Badge>
+                  </TableCell>
+                </>
+              )}
+
+              {/* Membership Activation Rows */}
+              {activeReport === "activation" && (
+                <>
+                  <TableCell className="font-medium">{item.clientName}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+                      {item.package}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {format(new Date(item.joiningDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-emerald-600" />
+                      {format(new Date(item.activationDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {item.expiryDate !== "Not Set" ? format(new Date(item.expiryDate), "LLL dd, yyyy") : "Not Set"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.leftDays <= 0
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : item.leftDays <= 30
+                            ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                            : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      }
+                    >
+                      {item.leftDays} days
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>{item.coach}</TableCell>
+                </>
+              )}
+
+              {/* Membership Expiry Rows */}
+              {activeReport === "expiry" && (
+                <>
+                  <TableCell className="font-medium">{item.clientName}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+                      {item.package}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {format(new Date(item.joiningDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-emerald-600" />
+                      {format(new Date(item.activationDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      <span className={item.leftDays <= 0 ? "text-red-600 font-medium" : ""}>
+                        {format(new Date(item.expiryDate), "LLL dd, yyyy")}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.leftDays <= 0
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : item.leftDays <= 30
+                            ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                            : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      }
+                    >
+                      {item.leftDays} days
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>{item.coach}</TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.renewalStatus === "Expired"
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : item.renewalStatus === "Renewal Due"
+                            ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                            : item.renewalStatus === "Upcoming Renewal"
+                              ? "bg-blue-100 text-blue-700 border-blue-200"
+                              : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      }
+                    >
+                      {item.renewalStatus}
+                    </Badge>
+                  </TableCell>
+                </>
+              )}
+
+              {/* Renewal Report Rows */}
+              {activeReport === "renewal" && (
+                <>
+                  <TableCell className="font-medium">{item.clientName}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+                      {item.package}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {format(new Date(item.joiningDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-emerald-600" />
+                      {format(new Date(item.activationDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      <span className={item.leftDays <= 0 ? "text-red-600 font-medium" : ""}>
+                        {format(new Date(item.expiryDate), "LLL dd, yyyy")}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.leftDays <= 0
+                          ? "bg-red-100 text-red-700 border-red-200"
+                          : item.leftDays <= 30
+                            ? "bg-yellow-100 text-yellow-700 border-yellow-200"
+                            : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                      }
+                    >
+                      {item.leftDays} days
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>{item.coach}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-purple-200 text-purple-700">
+                      {item.renewalMonth}
+                    </Badge>
+                  </TableCell>
+                </>
+              )}
+
+              {/* Freezing Report Rows */}
+              {activeReport === "freezing" && (
+                <>
+                  <TableCell className="font-medium">{item.clientName}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-blue-200 text-blue-700">
+                      {item.package}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {item.activationDate !== "N/A" ? format(new Date(item.activationDate), "LLL dd, yyyy") : "N/A"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                      {item.frozenDays} days
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {item.updatedExpiryDate !== "Not Set" ? format(new Date(item.updatedExpiryDate), "LLL dd, yyyy") : "Not Set"}
+                    </div>
+                  </TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>{item.coach}</TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.reason === "Processed"
+                          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                          : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                      }
+                    >
+                      {item.reason}
+                    </Badge>
+                  </TableCell>
+                </>
+              )}
+
+              {/* Follow-up Report Rows */}
+              {activeReport === "followup" && (
+                <>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {format(new Date(item.lastContact), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+                      {item.source}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {format(new Date(item.leadDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.status === "Done"
+                          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                          : item.status === "Failed"
+                            ? "bg-red-100 text-red-700 border-red-200"
+                            : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                      }
+                    >
+                      {item.status === "Done" ? (
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                      ) : item.status === "Failed" ? (
+                        <XCircle className="h-3 w-3 mr-1" />
+                      ) : (
+                        <Clock className="h-3 w-3 mr-1" />
+                      )}
+                      {item.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-emerald-600" />
+                      {item.followUpDate !== "Not Set" ? format(new Date(item.followUpDate), "LLL dd, yyyy") : "Not Set"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-blue-200 text-blue-700">
+                      {item.attempts}
+                    </Badge>
+                  </TableCell>
+                </>
+              )}
+
+              {/* Appointment Report Rows */}
+              {activeReport === "appointments" && (
+                <>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>{item.bde}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-emerald-200 text-emerald-700">
+                      {item.source}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {format(new Date(item.leadDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-emerald-600" />
+                      {item.followUpDate !== "Not Set" ? format(new Date(item.followUpDate), "LLL dd, yyyy") : "Not Set"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="border-blue-200 text-blue-700">
+                      {item.attempts}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.appointmentStatus === "Successful"
+                          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                          : item.appointmentStatus === "Failed"
+                            ? "bg-red-100 text-red-700 border-red-200"
+                            : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                      }
+                    >
+                      {item.appointmentStatus === "Successful" ? (
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                      ) : item.appointmentStatus === "Failed" ? (
+                        <XCircle className="h-3 w-3 mr-1" />
+                      ) : (
+                        <Clock className="h-3 w-3 mr-1" />
+                      )}
+                      {item.appointmentStatus}
+                    </Badge>
+                  </TableCell>
+                </>
+              )}
+
+              {/* Referral Report Rows */}
+              {activeReport === "referral" && (
+                <>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell>{item.contact}</TableCell>
+                  <TableCell>{item.referredBy}</TableCell>
+                  <TableCell>{item.referrerContact}</TableCell>
+                  <TableCell>{item.counselor}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-slate-500" />
+                      {format(new Date(item.leadDate), "LLL dd, yyyy")}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      className={
+                        item.leadStatus === "Converted"
+                          ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                          : item.leadStatus === "Lost"
+                            ? "bg-red-100 text-red-700 border-red-200"
+                            : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                      }
+                    >
+                      {item.leadStatus === "Converted" ? (
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                      ) : item.leadStatus === "Lost" ? (
+                        <XCircle className="h-3 w-3 mr-1" />
+                      ) : (
+                        <Clock className="h-3 w-3 mr-1" />
+                      )}
+                      {item.leadStatus}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 text-emerald-600" />
+                      {item.followUpDate !== "Not Set" ? format(new Date(item.followUpDate), "LLL dd, yyyy") : "Not Set"}
+                    </div>
+                  </TableCell>
+                </>
+              )}
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  </div>
+)}
 
           {/* Pagination Controls */}
           {!loading && reportDataInfo.totalItems > 0 && reportDataInfo.totalPages > 1 && (
